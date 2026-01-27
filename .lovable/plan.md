@@ -1,174 +1,183 @@
 
 
-# Interactive AI Group Chat with Gemini 3
+# Fix Interactive Group Chat
 
-Transform the hero animation into a fully interactive group chat where users can type messages and receive responses from AI-powered "Sarah" and "Mike" bots, each with distinct personalities.
-
----
-
-## Architecture Overview
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                         Frontend                                │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              HeroAnimation Component                     │   │
-│  │  - User types message in input                          │   │
-│  │  - Messages state tracks full conversation              │   │
-│  │  - Shows typing indicator while AI responds             │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                            │                                    │
-│                            ▼                                    │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Supabase Edge Function                      │   │
-│  │  /functions/v1/group-chat                                │   │
-│  │  - Receives full conversation history                   │   │
-│  │  - Calls Lovable AI Gateway (Gemini 3)                  │   │
-│  │  - Returns response for Sarah OR Mike                   │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                            │                                    │
-│                            ▼                                    │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Lovable AI Gateway                          │   │
-│  │  https://ai.gateway.lovable.dev/v1/chat/completions     │   │
-│  │  Model: google/gemini-3-flash-preview                   │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
+Resolve the edge function connectivity issue and improve the UI by removing the "Try chatting!" tooltip.
 
 ---
 
-## Implementation Steps
+## Root Cause Analysis
 
-### 1. Create Edge Function: `group-chat`
+The "Failed to fetch" error was caused by the edge function not being fully deployed/ready when the frontend tried to call it. The function has now been redeployed and verified working.
 
-**File**: `supabase/functions/group-chat/index.ts`
+**Test Results:**
+- Direct API call to edge function: Status 200, valid JSON response
+- Edge function logs: Shows successful boot
+- Function deployed successfully
 
-Creates a backend function that:
-- Receives full conversation history from the frontend
-- Maintains context of all messages (Sarah, Mike, and user)
-- Calls Lovable AI Gateway with `google/gemini-3-flash-preview`
-- Generates responses from either Sarah or Mike based on conversation flow
+---
 
-**System Prompt Design**:
-```text
-You are roleplaying as TWO friends in a group chat: Sarah and Mike.
-- Sarah: Enthusiastic, uses emojis, loves planning and finding deals
-- Mike: Chill, supportive, occasionally sarcastic, uses casual language
+## Changes Required
 
-The conversation started with everyone sharing their Wordle scores.
-You won with a 2/6 and they're excited to celebrate with a Vegas trip.
-
-RULES:
-1. Respond as ONE character per message (either Sarah or Mike)
-2. Keep responses short and casual (1-2 sentences max)
-3. Reference what others said in the chat
-4. Stay on topic: Wordle, Vegas trip, travel planning
-5. Return JSON: {"name": "Sarah" or "Mike", "message": "..."}
-```
-
-### 2. Update Config
-
-**File**: `supabase/config.toml`
-
-Add the edge function configuration with JWT verification disabled for public access.
-
-### 3. Refactor HeroAnimation Component
+### 1. Remove "Try chatting!" Tooltip
 
 **File**: `src/components/HeroAnimation.tsx`
 
-Transform from auto-playing animation to interactive chat:
+Remove the floating tooltip that appears above the input when interactive mode starts. This removes visual clutter and the element that may have been causing UI issues.
 
-| Feature | Implementation |
-|---------|----------------|
-| **Messages State** | `useState` array holding all messages with `{name, message, sender}` |
-| **User Input** | Real input field with `onChange` and `onKeyDown` handlers |
-| **Send Handler** | On submit: add user message, call edge function, add bot response |
-| **Typing Indicator** | Show while waiting for AI response |
-| **Auto-Scroll** | Continue scrolling to bottom on new messages |
-| **Initial Animation** | Keep the Wordle opening sequence, then transition to interactive |
-
-**Message Type**:
-```typescript
-interface ChatMessage {
-  name: string;      // "Sarah", "Mike", or "You"
-  message: string;
-  sender: boolean;   // true if from user
-}
+**Lines to remove (243-250):**
+```tsx
+{isInteractive && !isLoading && (
+  <motion.div
+    initial={{ opacity: 0, scale: 0 }}
+    animate={{ opacity: 1, scale: 1 }}
+    className="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full whitespace-nowrap"
+  >
+    Try chatting! ✨
+  </motion.div>
+)}
 ```
 
-**Conversation Flow**:
-1. Wordle messages animate in (existing behavior)
-2. Trip card appears
-3. Input becomes active
-4. User types → message appears → typing indicator → AI responds
-5. Both Sarah and Mike can respond (AI decides who speaks)
-
-### 4. Add Chat API Utility
+### 2. Improve Error Handling
 
 **File**: `src/lib/chatApi.ts`
 
-Create a helper function to call the edge function:
-- Sends full message history for context
-- Handles errors gracefully
-- Returns parsed response with bot name and message
+Add better error handling with retry logic and more descriptive error messages:
+- Add a retry mechanism for transient failures
+- Improve error messages to be user-friendly
+- Add logging for debugging
+
+### 3. Add Loading State Stability
+
+**File**: `src/components/HeroAnimation.tsx`
+
+Ensure the UI doesn't "spaz out" during loading:
+- Keep typing indicator stable during API calls
+- Prevent multiple rapid submissions
+- Add debouncing to prevent race conditions
 
 ---
 
-## Bot Personalities
+## Implementation Details
 
-| Bot | Personality | Example Responses |
-|-----|-------------|-------------------|
-| **Sarah** | Enthusiastic planner, emoji lover, finds deals | "omg yes!! I found flights for $299 ✈️", "we NEED to do this 🎉" |
-| **Mike** | Chill, supportive, occasionally sarcastic | "I'm down for whatever tbh", "lol ok but who's sharing a room" |
+### Updated chatApi.ts
 
-The AI will naturally alternate between them based on conversation context.
+```typescript
+import { supabase } from "@/integrations/supabase/client";
+
+export interface ChatMessage {
+  name: string;
+  message: string;
+  sender: boolean;
+}
+
+export interface BotResponse {
+  name: "Sarah" | "Mike";
+  message: string;
+}
+
+export async function sendChatMessage(
+  messages: ChatMessage[], 
+  retries = 2
+): Promise<BotResponse> {
+  try {
+    const { data, error } = await supabase.functions.invoke("group-chat", {
+      body: { messages },
+    });
+
+    if (error) {
+      console.error("Error calling group-chat function:", error);
+      
+      // Retry on network errors
+      if (retries > 0 && error.message?.includes("fetch")) {
+        console.log(`Retrying... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return sendChatMessage(messages, retries - 1);
+      }
+      
+      throw new Error("Connection failed. Please try again.");
+    }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    if (!data?.name || !data?.message) {
+      throw new Error("Invalid response from chat");
+    }
+
+    return {
+      name: data.name,
+      message: data.message,
+    };
+  } catch (err) {
+    console.error("sendChatMessage error:", err);
+    throw err;
+  }
+}
+```
+
+### Updated HeroAnimation.tsx (Input Section)
+
+Remove the tooltip and add stability improvements:
+
+```tsx
+{/* Input bar */}
+<div className="p-3 border-t border-border bg-card">
+  <div className="flex items-center gap-2">
+    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+      <span className="text-lg">+</span>
+    </div>
+    <div className="flex-1">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={isInteractive ? "Type a message..." : "iMessage"}
+        disabled={!isInteractive || isLoading}
+        className={`
+          w-full bg-muted rounded-full px-4 py-2 text-sm
+          placeholder:text-muted-foreground
+          focus:outline-none focus:ring-2 focus:ring-primary/50
+          disabled:opacity-50 disabled:cursor-not-allowed
+          transition-all duration-300
+          ${isInteractive && !isLoading ? "ring-2 ring-primary/30" : ""}
+        `}
+      />
+    </div>
+    {isInteractive && (
+      <motion.button
+        initial={{ opacity: 0, scale: 0 }}
+        animate={{ opacity: 1, scale: 1 }}
+        onClick={handleSendMessage}
+        disabled={!inputValue.trim() || isLoading}
+        className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+      >
+        <Send className="w-4 h-4" />
+      </motion.button>
+    )}
+  </div>
+</div>
+```
 
 ---
 
-## Technical Details
+## Files to Modify
 
-### Edge Function Flow
-
-1. Receive: `{ messages: ChatMessage[] }`
-2. Build system prompt with personality definitions
-3. Convert messages to Gemini format with role mapping
-4. Call Lovable AI Gateway
-5. Parse JSON response: `{ name: "Sarah" | "Mike", message: string }`
-6. Return to frontend
-
-### Error Handling
-
-- Show toast on API errors
-- Fallback message if parsing fails
-- Rate limit handling (429) with user-friendly message
-
-### Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| `supabase/functions/group-chat/index.ts` | Create |
-| `supabase/config.toml` | Update |
-| `src/components/HeroAnimation.tsx` | Refactor |
-| `src/lib/chatApi.ts` | Create |
-
----
-
-## User Experience
-
-1. User lands on homepage
-2. Sees animated Wordle chat play out
-3. Trip card appears, input activates with subtle glow
-4. User types "what hotel should we book?"
-5. Typing indicator shows
-6. Sarah responds: "I was thinking the Venetian! they have a pool 🏊‍♀️"
-7. Typing indicator shows again
-8. Mike responds: "bet. as long as there's a buffet nearby"
-9. Conversation continues naturally
+| File | Changes |
+|------|---------|
+| `src/components/HeroAnimation.tsx` | Remove "Try chatting!" tooltip, remove pulse animation, stabilize loading states |
+| `src/lib/chatApi.ts` | Add retry logic and better error handling |
 
 ---
 
 ## Summary
 
-This implementation creates an engaging, interactive demo where visitors can actually chat with AI-powered "friends" in the group chat. The bots maintain full context of the conversation and respond with distinct personalities, showcasing how the app facilitates trip planning through natural conversation.
+1. **Edge function is working** - Verified with direct API call
+2. **Remove distracting tooltip** - Cleaner UI without the "Try chatting!" message
+3. **Add retry logic** - Handle transient network failures gracefully
+4. **Stabilize animations** - Remove pulse animation that may cause visual issues
+5. **Better error messages** - User-friendly feedback when things go wrong
 
