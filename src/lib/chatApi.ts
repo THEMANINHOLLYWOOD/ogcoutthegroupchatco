@@ -40,7 +40,8 @@ async function invokeWithTimeout(
 
 export async function sendChatMessage(
   messages: ChatMessage[], 
-  retries = MAX_RETRIES
+  retries = MAX_RETRIES,
+  onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<BotResponse> {
   // Filter out card messages before sending to API
   const filteredMessages = messages
@@ -62,6 +63,7 @@ export async function sendChatMessage(
         // If we have retries left, wait and try again
         if (attempt < retries) {
           console.log(`Retrying in ${RETRY_DELAY}ms...`);
+          onRetry?.(attempt + 1, retries);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
           continue;
         }
@@ -81,6 +83,7 @@ export async function sendChatMessage(
         lastError = new Error("Invalid response from chat");
         
         if (attempt < retries) {
+          onRetry?.(attempt + 1, retries);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
           continue;
         }
@@ -100,6 +103,7 @@ export async function sendChatMessage(
       lastError = err instanceof Error ? err : new Error('Unknown error');
       
       if (attempt < retries) {
+        onRetry?.(attempt + 1, retries);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         continue;
       }
@@ -108,5 +112,5 @@ export async function sendChatMessage(
 
   // All retries exhausted
   console.error("All chat API attempts failed");
-  throw new Error(lastError?.message || "Unable to connect. Please try again.");
+  throw new Error("Having trouble connecting. Give it another try!");
 }
