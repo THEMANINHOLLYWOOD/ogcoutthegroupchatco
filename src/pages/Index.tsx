@@ -53,21 +53,31 @@ const Index = () => {
       </motion.nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4">
+      <section className="pt-24 lg:pt-32 pb-12 lg:pb-20 px-4">
         <div className="container mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-            {/* Left: Copy */}
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-20 items-center">
+            {/* Phone Animation - First on mobile, second on desktop */}
             <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-center lg:text-left"
+              className="relative order-1 lg:order-2"
+            >
+              <HeroAnimation />
+            </motion.div>
+
+            {/* Hero Text - Second on mobile, first on desktop */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="text-center lg:text-left order-2 lg:order-1"
             >
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4 }}
-                className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium mb-6 max-w-full"
+                transition={{ duration: 0.4, delay: 0.5 }}
+                className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium mb-4 lg:mb-6 max-w-full"
               >
                 <span className="relative flex h-2 w-2 shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
@@ -76,32 +86,31 @@ const Index = () => {
                 <span className="leading-tight">Don't just book flights, accommodations, and activities; book experiences.</span>
               </motion.div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold tracking-tight mb-4 lg:mb-6">
                 Let trips make it
                 <span className="text-primary"> out the group chat.</span>
               </h1>
 
-              <p className="text-lg text-muted-foreground mb-8 max-w-lg mx-auto lg:mx-0">
-                Pick a trip off the shelf. Let the plans make it out the group chat. 
-                Build complete getaways and share a single payment link with friends.
+              <p className="text-base lg:text-lg text-muted-foreground mb-6 lg:mb-8 max-w-lg mx-auto lg:mx-0">
+                Pick a trip off the shelf. Build complete getaways and share a single payment link with friends.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Button size="lg" className="rounded-full text-base px-8 h-12 shadow-soft">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
+                <Button size="lg" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12 shadow-soft">
                   Create a Trip
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
-                <Button size="lg" variant="outline" className="rounded-full text-base px-8 h-12">
+                <Button size="lg" variant="outline" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12">
                   Join a Trip
                 </Button>
               </div>
 
-              {/* Social proof */}
+              {/* Social proof - hidden on mobile for cleaner look */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="mt-10 flex items-center gap-4 justify-center lg:justify-start"
+                className="mt-8 lg:mt-10 hidden sm:flex items-center gap-4 justify-center lg:justify-start"
               >
                 <div className="flex -space-x-2">
                   {[1, 2, 3, 4].map((i) => (
@@ -115,16 +124,6 @@ const Index = () => {
                   <span className="font-semibold text-foreground">2,400+</span> trips planned
                 </p>
               </motion.div>
-            </motion.div>
-
-            {/* Right: Phone Animation */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="relative"
-            >
-              <HeroAnimation />
             </motion.div>
           </div>
         </div>
