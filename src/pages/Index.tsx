@@ -77,10 +77,8 @@ const Index = () => {
               </motion.div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-                Stop planning in the
-                <span className="text-primary"> group chat.</span>
-                <br />
-                Start booking.
+                Let trips make it
+                <span className="text-primary"> out the group chat.</span>
               </h1>
 
               <p className="text-lg text-muted-foreground mb-8 max-w-lg mx-auto lg:mx-0">
