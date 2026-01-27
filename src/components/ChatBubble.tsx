@@ -37,7 +37,7 @@ export const ChatBubble = ({
           }
         `}
       >
-        <p className="text-[15px] leading-relaxed">{message}</p>
+        <p className="text-[15px] leading-relaxed whitespace-pre-line">{message}</p>
       </div>
     </motion.div>
   );

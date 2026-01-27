@@ -5,9 +5,9 @@ import { TripPreviewCard } from "./TripPreviewCard";
 import { useState, useEffect, useRef } from "react";
 
 const chatMessages = [
-  { message: "Wordle 847 3/6 🟩🟩⬛🟩🟩", sender: false, name: "Sarah" },
-  { message: "Wordle 847 5/6 😤 that was hard", sender: false, name: "Mike" },
-  { message: "Wordle 847 2/6 😎🟩🟩🟩🟩🟩", sender: true, name: "You" },
+  { message: "Wordle 1,681 3/6\n\n⬜🟨⬜⬜🟩\n🟩⬜🟨🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Sarah" },
+  { message: "Wordle 1,681 5/6\n\n⬜⬜⬜⬜⬜\n⬜🟨⬜🟨⬜\n🟨🟩⬜🟩⬜\n🟩🟩⬜🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Mike" },
+  { message: "Wordle 1,681 2/6\n\n🟩🟩🟨⬜🟩\n🟩🟩🟩🟩🟩", sender: true, name: "You" },
   { message: "NO WAY", sender: false, name: "Sarah" },
   { message: "ok we need to celebrate this... Vegas?", sender: false, name: "Mike" },
   { message: "I'm so down 🎰", sender: true, name: "You" },
