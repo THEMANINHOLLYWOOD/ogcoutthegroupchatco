@@ -62,22 +62,42 @@ serve(async (req) => {
         : `[${msg.name}]: ${msg.message}`,
     }));
 
-    console.log("Calling Lovable AI Gateway with messages:", JSON.stringify(apiMessages, null, 2));
+    console.log("Calling Lovable AI Gateway with", apiMessages.length, "messages");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...apiMessages,
-        ],
-      }),
-    });
+    // Create AbortController for timeout (25 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    let response: Response;
+    try {
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...apiMessages,
+          ],
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error("AI gateway request timed out");
+        return new Response(
+          JSON.stringify({ error: "Request timed out. Please try again." }),
+          { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw fetchError;
+    }
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -101,7 +121,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log("AI response:", JSON.stringify(data, null, 2));
+    console.log("AI response received successfully");
     
     const content = data.choices?.[0]?.message?.content;
     
@@ -142,7 +162,7 @@ serve(async (req) => {
       parsedResponse.name = "Sarah";
     }
 
-    console.log("Returning response:", parsedResponse);
+    console.log("Returning response:", parsedResponse.name);
 
     return new Response(JSON.stringify(parsedResponse), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
