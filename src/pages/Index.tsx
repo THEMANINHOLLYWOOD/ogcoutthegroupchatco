@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { HeroAnimation } from "../components/HeroAnimation";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Plane, Hotel, Users, CreditCard } from "lucide-react";
+import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const features = [
@@ -73,11 +73,12 @@ const Index = () => {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="text-center lg:text-left order-2 lg:order-1"
             >
+              {/* Badge - hidden on mobile */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.4, delay: 0.5 }}
-                className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium mb-4 lg:mb-6 max-w-full"
+                className="hidden lg:inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6"
               >
                 <span className="relative flex h-2 w-2 shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
@@ -86,16 +87,32 @@ const Index = () => {
                 <span className="leading-tight">Don't just book flights, accommodations, and activities; book experiences.</span>
               </motion.div>
 
-              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold tracking-tight mb-4 lg:mb-6">
+              <h1 className="text-2xl sm:text-4xl lg:text-6xl font-bold tracking-tight mb-4 lg:mb-6">
                 Let trips make it
                 <span className="text-primary"> out the group chat.</span>
               </h1>
 
-              <p className="text-base lg:text-lg text-muted-foreground mb-6 lg:mb-8 max-w-lg mx-auto lg:mx-0">
+              {/* Scroll indicator - mobile only */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="flex lg:hidden flex-col items-center gap-2 mb-6"
+              >
+                <motion.div
+                  animate={{ y: [0, 6, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                </motion.div>
+              </motion.div>
+
+              {/* Description - hidden on mobile, shown on scroll via features section */}
+              <p className="hidden sm:block text-base lg:text-lg text-muted-foreground mb-6 lg:mb-8 max-w-lg mx-auto lg:mx-0">
                 Pick a trip off the shelf. Build complete getaways and share a single payment link with friends.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
+              <div className="hidden sm:flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
                 <Button size="lg" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12 shadow-soft">
                   Create a Trip
                   <ArrowRight className="ml-2 w-4 h-4" />
@@ -125,6 +142,24 @@ const Index = () => {
                 </p>
               </motion.div>
             </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Mobile CTA - shown only on mobile, right after hero */}
+      <section className="sm:hidden px-4 pb-8">
+        <div className="container mx-auto">
+          <p className="text-base text-muted-foreground mb-6 text-center">
+            Pick a trip off the shelf. Build complete getaways and share a single payment link with friends.
+          </p>
+          <div className="flex flex-col gap-3">
+            <Button size="lg" className="rounded-full text-base px-6 h-11 shadow-soft w-full">
+              Create a Trip
+              <ArrowRight className="ml-2 w-4 h-4" />
+            </Button>
+            <Button size="lg" variant="outline" className="rounded-full text-base px-6 h-11 w-full">
+              Join a Trip
+            </Button>
           </div>
         </div>
       </section>
