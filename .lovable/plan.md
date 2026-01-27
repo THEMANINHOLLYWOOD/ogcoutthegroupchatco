@@ -1,75 +1,91 @@
 
 
-# Out the Group Chat
-### *"Pick a trip off the shelf. Let the plans make it out the group chat."*
+# Wordle Group Chat Animation
 
-A sleek, iMessage-inspired travel booking platform where trip organizers curate complete getaways and share a single payment link with friends.
-
----
-
-## Design System
-
-**iMessage-Inspired Branding**
-- Chat bubble UI elements throughout (rounded corners, sender/receiver styling)
-- Signature color palette: iOS blue (#007AFF) and green (#34C759) as accents on clean white/black backgrounds
-- San Francisco-style typography with comfortable spacing
-- Subtle blur effects and soft shadows for depth
-- Smooth spring animations on all interactions
+Update the hero animation to show a fun, relatable "Wordle" group chat where friends share their daily scores, then naturally pivot to planning a trip together.
 
 ---
 
-## Core Features
+## Chat Narrative
 
-### 1. Landing Page
-- Hero with animated chat bubble visualization showing "trip planning made real"
-- Clear value proposition: "Stop planning in the group chat. Start booking."
-- "Create a Trip" and "Join a Trip" CTAs
-- Preview of how the shared trip link looks
+The new conversation flow:
 
-### 2. Trip Builder (For Organizers)
-- **Flight Search**: Search and select flights using travel APIs (Amadeus)
-- **Accommodation Search**: Browse and book hotels/stays
-- **Itinerary Timeline**: Visual day-by-day view styled as a chat thread
-- **Add Items**: Activities, restaurants, experiences with costs
-- **Cost Summary**: Running total with per-person split calculation
-
-### 3. Trip Preview & Sharing
-- Shareable link generation (e.g., outthegroupchat.app/trip/abc123)
-- Beautiful trip preview card (like an iMessage link preview)
-- Trip details page showing full itinerary and cost breakdown
-- "I'm In" button for friends to claim their spot
-
-### 4. Payment Flow
-- Stripe integration for one-time payments
-- Simple checkout: friend pays their calculated share
-- Payment confirmation styled as "delivered" message indicator
-- Organizer dashboard showing who's paid and who hasn't
-
-### 5. User Accounts (Optional)
-- Sign up/login for trip organizers to save and manage trips
-- Guest checkout for friends joining trips (no account required)
-- Account holders get: trip history, saved payment methods, organizer tools
-
-### 6. Trip Dashboard
-- For organizers: see all created trips, payment status, attendee management
-- For participants: view joined trips and payment receipts
+1. **Sarah**: "Wordle 847 3/6 🟩🟩⬛🟩🟩" 
+2. **Mike**: "Wordle 847 5/6 😤 that was hard"
+3. **You**: "Wordle 847 2/6 😎🟩🟩🟩🟩🟩"
+4. **Sarah**: "NO WAY"
+5. **Mike**: "ok we need to celebrate this... Vegas?"
+6. **You**: "I'm so down 🎰"
+7. **Sarah**: "wait I found this app that books everything"
+8. *[Typing indicator...]*
+9. *[Trip Preview Card appears]*
 
 ---
 
-## Technical Requirements
+## Animation Enhancements
 
-- **Backend**: Supabase for authentication, trip storage, and user data
-- **Payments**: Stripe for secure payment collection
-- **Travel APIs**: Amadeus for flights, hotel booking API for accommodations
-- **Real-time**: Live updates when friends join or pay
+### Auto-Scrolling
+- Track scroll position with `useRef` on the messages container
+- After each new message appears, smoothly scroll to bottom using `scrollIntoView({ behavior: 'smooth' })`
+- Use `motion.div` with `layout` prop for smooth content reflow
+
+### Message Timing
+- Stagger messages with realistic typing delays (800ms-1500ms between messages)
+- Faster responses for short messages like "NO WAY"
+- Slightly longer pauses before topic changes (Vegas pivot)
+
+### Visual Updates
+- Change group chat name from "Miami Trip Squad" → "Wordle 🟩"
+- Update participant names: Sarah, Mike, You
+- Change emoji icon from 🏖️ → 🟩 (Wordle green square)
 
 ---
 
-## Animations & Interactions
+## Technical Details
 
-- Message bubble "pop-in" animation when content loads
-- Smooth page transitions with subtle slide/fade
-- Typing indicator animation during loading states
-- Delivered/read receipt animations for confirmations
-- Gentle bounce effects on button interactions
+### Files to Modify
+
+**`src/components/HeroAnimation.tsx`**
+
+1. Update `chatMessages` array with new Wordle-themed conversation
+2. Add `scrollRef` to track the messages container
+3. Create `useEffect` that scrolls to bottom when `currentStep` changes
+4. Adjust timing intervals for more natural conversation pacing
+5. Update chat header to "Wordle 🟩" with participants "Sarah, Mike, You"
+
+### Scroll Implementation
+
+```text
+┌─────────────────────────┐
+│  Messages Container     │  ← useRef attached here
+│  ┌───────────────────┐  │
+│  │ Message 1         │  │
+│  │ Message 2         │  │
+│  │ Message 3         │  │  ← scrollIntoView triggered
+│  │ ...               │  │     after each new message
+│  │ [New Message] ←───┼──┼── Scroll target
+│  └───────────────────┘  │
+└─────────────────────────┘
+```
+
+### Animation Timeline
+
+| Time (ms) | Event |
+|-----------|-------|
+| 0 | Phone animates in |
+| 800 | Sarah's Wordle score appears |
+| 1800 | Mike's frustrated score |
+| 3000 | Your winning score |
+| 3600 | Sarah's reaction (quick) |
+| 4600 | Mike's Vegas idea |
+| 5600 | Your response |
+| 6800 | Sarah mentions the app |
+| 8000 | Typing indicator |
+| 10000 | Trip card slides in |
+
+---
+
+## Summary
+
+This update makes the animation more relatable and fun by starting with the universally-loved Wordle ritual, then showing how a simple game share in a group chat naturally leads to travel planning. The auto-scroll ensures users see the full conversation unfold smoothly.
 
