@@ -4,6 +4,7 @@ import { TypingIndicator } from "./TypingIndicator";
 import { TripPreviewCard } from "./TripPreviewCard";
 import { useState, useEffect, useRef } from "react";
 import { sendChatMessage, ChatMessage } from "@/lib/chatApi";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Send } from "lucide-react";
 
@@ -29,9 +30,11 @@ export const HeroAnimation = () => {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [typingName, setTypingName] = useState("Sarah");
+  const [isRetrying, setIsRetrying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestInFlightRef = useRef(false);
 
   // Auto-scroll to bottom when new messages appear
   useEffect(() => {
@@ -74,6 +77,11 @@ export const HeroAnimation = () => {
       setIsInteractive(true);
       // Focus the input when it becomes interactive
       setTimeout(() => inputRef.current?.focus(), 100);
+      
+      // Warm up the edge function to eliminate cold-start latency
+      supabase.functions.invoke("group-chat", {
+        body: { messages: [{ name: "System", message: "ping", sender: true }] }
+      }).catch(() => {}); // Ignore errors - this is just a warmup
     }, 11000);
 
     return () => {
@@ -86,6 +94,10 @@ export const HeroAnimation = () => {
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
+    
+    // Prevent duplicate requests
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
 
     const userMessage: ChatMessage = {
       name: "You",
@@ -98,6 +110,7 @@ export const HeroAnimation = () => {
     setMessages(updatedMessages);
     setInputValue("");
     setIsLoading(true);
+    setIsRetrying(false);
     
     // Randomly pick who's typing
     const nextTyper = Math.random() > 0.5 ? "Sarah" : "Mike";
@@ -105,9 +118,14 @@ export const HeroAnimation = () => {
     setShowTyping(true);
 
     try {
-      const response = await sendChatMessage(updatedMessages);
+      const response = await sendChatMessage(
+        updatedMessages,
+        3,
+        () => setIsRetrying(true) // Show "Reconnecting..." on retry
+      );
       
       setShowTyping(false);
+      setIsRetrying(false);
       
       const botMessage: ChatMessage = {
         name: response.name,
@@ -119,13 +137,15 @@ export const HeroAnimation = () => {
     } catch (error) {
       console.error("Error sending message:", error);
       setShowTyping(false);
+      setIsRetrying(false);
       toast({
-        title: "Oops!",
-        description: error instanceof Error ? error.message : "Failed to get response. Try again!",
+        title: "Network hiccup!",
+        description: error instanceof Error ? error.message : "Give it another try!",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
+      requestInFlightRef.current = false;
     }
   };
 
@@ -206,7 +226,9 @@ export const HeroAnimation = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <p className="text-xs text-muted-foreground ml-1 mb-1">{typingName}</p>
+              <p className="text-xs text-muted-foreground ml-1 mb-1">
+                {isRetrying ? "Reconnecting..." : typingName}
+              </p>
               <TypingIndicator />
             </motion.div>
           )}
