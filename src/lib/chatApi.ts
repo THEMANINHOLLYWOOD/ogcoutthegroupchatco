@@ -16,9 +16,14 @@ export async function sendChatMessage(
   messages: ChatMessage[], 
   retries = 2
 ): Promise<BotResponse> {
+  // Filter out card messages before sending to API
+  const filteredMessages = messages
+    .filter(msg => !msg.isCard)
+    .map(({ name, message, sender }) => ({ name, message, sender }));
+
   try {
     const { data, error } = await supabase.functions.invoke("group-chat", {
-      body: { messages },
+      body: { messages: filteredMessages },
     });
 
     if (error) {
