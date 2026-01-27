@@ -73,7 +73,7 @@ const Index = () => {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
-                Now with live flight booking
+                Don't just book flights, accommodations, and activities, book experiences.
               </motion.div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
