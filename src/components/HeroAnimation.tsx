@@ -222,7 +222,7 @@ export const HeroAnimation = () => {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
               <span className="text-lg">+</span>
             </div>
-            <div className="flex-1 relative">
+            <div className="flex-1">
               <input
                 ref={inputRef}
                 type="text"
@@ -237,18 +237,9 @@ export const HeroAnimation = () => {
                   focus:outline-none focus:ring-2 focus:ring-primary/50
                   disabled:opacity-50 disabled:cursor-not-allowed
                   transition-all duration-300
-                  ${isInteractive ? "ring-2 ring-primary/30 animate-pulse" : ""}
+                  ${isInteractive && !isLoading ? "ring-2 ring-primary/30" : ""}
                 `}
               />
-              {isInteractive && !isLoading && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full whitespace-nowrap"
-                >
-                  Try chatting! ✨
-                </motion.div>
-              )}
             </div>
             {isInteractive && (
               <motion.button
