@@ -3,10 +3,13 @@ import { ChatBubble } from "./ChatBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { TripPreviewCard } from "./TripPreviewCard";
 import { useState, useEffect, useRef } from "react";
-import { sendChatMessage, ChatMessage } from "@/lib/chatApi";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import { Send } from "lucide-react";
+
+interface ChatMessage {
+  name: string;
+  message: string;
+  sender: boolean;
+  isCard?: boolean;
+}
 
 const initialMessages: ChatMessage[] = [
   { message: "Wordle 1,681 3/6\n\n⬜🟨⬜⬜🟩\n🟩⬜🟨🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Sarah" },
@@ -23,18 +26,10 @@ const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
 export const HeroAnimation = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [showCard, setShowCard] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
-  const [isInteractive, setIsInteractive] = useState(false);
-  const [inputValue, setInputValue] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [typingName, setTypingName] = useState("Sarah");
-  const [isRetrying, setIsRetrying] = useState(false);
+  const typingName = "Sarah";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const requestInFlightRef = useRef(false);
 
   // Auto-scroll to bottom when new messages appear
   useEffect(() => {
@@ -44,13 +39,12 @@ export const HeroAnimation = () => {
         behavior: 'smooth'
       });
     }
-  }, [messages, showTyping, showCard]);
+  }, [messages, showTyping]);
 
   // Initial animation sequence
   useEffect(() => {
     const messageTimers = messageTimings.map((timing, index) => {
       return setTimeout(() => {
-        setCurrentStep(index + 1);
         setMessages(initialMessages.slice(0, index + 1));
       }, timing);
     });
@@ -69,92 +63,14 @@ export const HeroAnimation = () => {
         sender: false,
         isCard: true
       }]);
-      setShowCard(true);
     }, 10000);
-
-    // Enable interactive mode after card appears
-    const interactiveTimer = setTimeout(() => {
-      setIsInteractive(true);
-      // Focus the input when it becomes interactive
-      setTimeout(() => inputRef.current?.focus(), 100);
-      
-      // Warm up the edge function to eliminate cold-start latency
-      supabase.functions.invoke("group-chat", {
-        body: { messages: [{ name: "System", message: "ping", sender: true }] }
-      }).catch(() => {}); // Ignore errors - this is just a warmup
-    }, 11000);
 
     return () => {
       messageTimers.forEach(clearTimeout);
       clearTimeout(typingTimer);
       clearTimeout(cardTimer);
-      clearTimeout(interactiveTimer);
     };
   }, []);
-
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
-    
-    // Prevent duplicate requests
-    if (requestInFlightRef.current) return;
-    requestInFlightRef.current = true;
-
-    const userMessage: ChatMessage = {
-      name: "You",
-      message: inputValue.trim(),
-      sender: true,
-    };
-
-    // Add user message immediately
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
-    setInputValue("");
-    setIsLoading(true);
-    setIsRetrying(false);
-    
-    // Randomly pick who's typing
-    const nextTyper = Math.random() > 0.5 ? "Sarah" : "Mike";
-    setTypingName(nextTyper);
-    setShowTyping(true);
-
-    try {
-      const response = await sendChatMessage(
-        updatedMessages,
-        3,
-        () => setIsRetrying(true) // Show "Reconnecting..." on retry
-      );
-      
-      setShowTyping(false);
-      setIsRetrying(false);
-      
-      const botMessage: ChatMessage = {
-        name: response.name,
-        message: response.message,
-        sender: false,
-      };
-      
-      setMessages((prev) => [...prev, botMessage]);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setShowTyping(false);
-      setIsRetrying(false);
-      toast({
-        title: "Network hiccup!",
-        description: error instanceof Error ? error.message : "Give it another try!",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-      requestInFlightRef.current = false;
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
 
   return (
     <div className="relative w-full max-w-md mx-auto">
@@ -227,53 +143,27 @@ export const HeroAnimation = () => {
               animate={{ opacity: 1 }}
             >
               <p className="text-xs text-muted-foreground ml-1 mb-1">
-                {isRetrying ? "Reconnecting..." : typingName}
+                {typingName}
               </p>
               <TypingIndicator />
             </motion.div>
           )}
           
-          
           {/* Scroll anchor */}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input bar */}
+        {/* Input bar - display only, not interactive */}
         <div className="p-3 border-t border-border bg-card">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
               <span className="text-lg">+</span>
             </div>
             <div className="flex-1">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={isInteractive ? "Type a message..." : "iMessage"}
-                disabled={!isInteractive || isLoading}
-                className={`
-                  w-full bg-muted rounded-full px-4 py-2 text-sm
-                  placeholder:text-muted-foreground
-                  focus:outline-none focus:ring-2 focus:ring-primary/50
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  transition-all duration-300
-                  ${isInteractive && !isLoading ? "ring-2 ring-primary/30" : ""}
-                `}
-              />
+              <div className="w-full bg-muted rounded-full px-4 py-2 text-sm text-muted-foreground">
+                iMessage
+              </div>
             </div>
-            {isInteractive && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
-                className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
-              >
-                <Send className="w-4 h-4" />
-              </motion.button>
-            )}
           </div>
         </div>
 

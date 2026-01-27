@@ -88,8 +88,8 @@ const Index = () => {
               </motion.div>
 
               <h1 className="text-2xl sm:text-4xl lg:text-6xl font-bold tracking-tight mb-4 lg:mb-6">
-                Let trips make it
-                <span className="text-primary"> out the group chat.</span>
+                Let trips make it<br />
+                <span className="text-primary">out the group chat.</span>
               </h1>
 
               {/* Scroll indicator - mobile only */}
