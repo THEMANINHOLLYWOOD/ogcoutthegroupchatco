@@ -1,83 +1,104 @@
 
-# Fix: Chat Reliability for Gemini 3 Flash Messages
+# Plan: Headline Formatting & Disable User Chat Input
 
-## Diagnosis Summary
+## Overview
 
-After thorough investigation, I found that:
+Two changes are needed:
+1. **Force "out the group chat" to always appear on the second line** of the headline on both mobile and desktop
+2. **Disable user input** in the chat and convert it to a continuous AI-driven demo conversation
 
-1. **The edge function works correctly** - Direct API tests return valid AI responses
-2. **The issue was deployment-related** - After redeploying the `group-chat` edge function, the chat started working immediately
-3. **The chat is currently working** - I tested it live and both Sarah and Mike are responding properly
+---
 
-The "Failed to fetch" errors in the logs were caused by a stale or improperly synced deployment of the edge function.
+## Change 1: Headline Line Break
 
-## What Was Already Working
-
-- Edge function code is solid with proper error handling
-- CORS headers are correctly configured
-- Retry logic (3 retries with 1.5s delays) is in place
-- Timeout handling (30s client, 25s server) is implemented
-- AI response parsing with fallbacks works correctly
-
-## Recommended Improvements to Prevent Future Issues
-
-### 1. Add Connection Health Check on Component Mount
-
-When the chat component becomes interactive, ping the edge function to "warm it up" before the user sends their first message. This eliminates cold-start latency.
-
-**File**: `src/components/HeroAnimation.tsx`
-
-```typescript
-// Add a warmup call when interactive mode is enabled
-useEffect(() => {
-  if (isInteractive) {
-    // Warm up the edge function with a lightweight call
-    supabase.functions.invoke("group-chat", {
-      body: { messages: [{ name: "System", message: "ping", sender: true }] }
-    }).catch(() => {}); // Ignore errors - this is just a warmup
-  }
-}, [isInteractive]);
+### Current Issue
+The headline is currently:
+```jsx
+<h1>
+  Let trips make it
+  <span className="text-primary"> out the group chat.</span>
+</h1>
 ```
 
-### 2. Add Visual Feedback During Retries
+On different screen sizes, the text may wrap unpredictably.
 
-Show users that retries are happening so they know the app isn't frozen.
+### Solution
+Add an explicit `<br />` tag to force the line break, ensuring "out the group chat." is always on its own line.
 
-**File**: `src/components/HeroAnimation.tsx`
+### File: `src/pages/Index.tsx`
+```jsx
+<h1 className="text-2xl sm:text-4xl lg:text-6xl font-bold tracking-tight mb-4 lg:mb-6">
+  Let trips make it<br />
+  <span className="text-primary">out the group chat.</span>
+</h1>
+```
 
-Add a retry counter state and display it in the typing indicator:
-- "Sarah is typing..." (first attempt)
-- "Reconnecting..." (on retry)
+Note: Also remove the leading space from "out" since it's now on its own line.
 
-### 3. Improve Error Messages
+---
 
-Make error messages more user-friendly and actionable:
-- "Having trouble connecting. The AI friends will respond shortly..."
-- "Network hiccup! Give it a moment..."
+## Change 2: Disable User Input & Create AI Loop
 
-### 4. Add Request Deduplication
+### Current Behavior
+- User can type messages after the initial animation
+- Messages are sent to Gemini and responses displayed
+- This has been unreliable due to Edge Function issues
 
-Prevent double-sends if the user clicks the send button twice quickly while the first request is pending.
+### New Behavior
+- Remove the interactive input functionality
+- After the trip card appears, start an automatic AI conversation loop
+- Sarah and Mike continue chatting about the Vegas trip without user interaction
+- The chat becomes a "demo showcase" rather than an interactive feature
 
-**File**: `src/components/HeroAnimation.tsx`
+### Implementation Details
 
-Use a ref to track if a request is in flight and ignore duplicate sends.
+#### File: `src/components/HeroAnimation.tsx`
 
-## Technical Implementation Details
+1. **Remove user input state and handlers:**
+   - Remove `inputValue`, `isLoading`, `isRetrying` states
+   - Remove `handleSendMessage` and `handleKeyDown` functions
+   - Remove `inputRef` and `requestInFlightRef`
+
+2. **Replace input bar with static display:**
+   - Change the input to a disabled, non-interactive state
+   - Remove the send button entirely
+   - Show a simple "iMessage" placeholder
+
+3. **Add automatic conversation loop (optional enhancement):**
+   - After the card appears, start a timer that periodically triggers AI responses
+   - This creates a living demo where Sarah and Mike keep chatting
+   - OR simply leave it as a static demo after the initial animation
+
+### Simplified Input Bar (Static Demo Mode)
+```jsx
+{/* Input bar - display only, not interactive */}
+<div className="p-3 border-t border-border bg-card">
+  <div className="flex items-center gap-2">
+    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+      <span className="text-lg">+</span>
+    </div>
+    <div className="flex-1">
+      <div className="w-full bg-muted rounded-full px-4 py-2 text-sm text-muted-foreground">
+        iMessage
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+---
+
+## Summary of Changes
 
 | File | Change |
 |------|--------|
-| `src/components/HeroAnimation.tsx` | Add warmup call, retry indicator, request deduplication |
-| `src/lib/chatApi.ts` | Add callback for retry status updates |
+| `src/pages/Index.tsx` | Add `<br />` after "Let trips make it" to force line break |
+| `src/components/HeroAnimation.tsx` | Remove all interactive chat functionality, replace with static input display |
 
-## Testing Plan
+---
 
-1. Refresh the page and wait for the animation to complete
-2. Type a message and send it
-3. Verify the AI responds within 3-5 seconds
-4. Send multiple messages to confirm consistency
-5. Test on mobile viewport to ensure responsiveness
+## Technical Notes
 
-## Current Status
-
-The chat is working after the edge function redeployment. The recommended improvements above will make it more resilient to cold starts and network issues in the future.
+- The Edge Function and chat API code (`src/lib/chatApi.ts`, `supabase/functions/group-chat/index.ts`) can remain in place for future use
+- This change simplifies the hero section to be a pure animation/demo
+- No Gemini API calls will be made after this change (only the initial warmup is removed too)
