@@ -2,39 +2,53 @@ import { motion } from "framer-motion";
 import { ChatBubble } from "./ChatBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { TripPreviewCard } from "./TripPreviewCard";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const chatMessages = [
-  { message: "Who's down for Miami? 🌴", sender: false, name: "Alex" },
-  { message: "I'm so in!!", sender: true, name: "You" },
-  { message: "Same!! When are we thinking?", sender: false, name: "Jordan" },
-  { message: "March 15-20? Found amazing flights", sender: false, name: "Alex" },
-  { message: "Yooo let's book it", sender: true, name: "You" },
+  { message: "Wordle 847 3/6 🟩🟩⬛🟩🟩", sender: false, name: "Sarah" },
+  { message: "Wordle 847 5/6 😤 that was hard", sender: false, name: "Mike" },
+  { message: "Wordle 847 2/6 😎🟩🟩🟩🟩🟩", sender: true, name: "You" },
+  { message: "NO WAY", sender: false, name: "Sarah" },
+  { message: "ok we need to celebrate this... Vegas?", sender: false, name: "Mike" },
+  { message: "I'm so down 🎰", sender: true, name: "You" },
+  { message: "wait I found this app that books everything", sender: false, name: "Sarah" },
 ];
+
+// Custom timing for each message (in ms from start)
+const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
 export const HeroAnimation = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [showCard, setShowCard] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages appear
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [currentStep, showTyping, showCard]);
 
   useEffect(() => {
-    // Animate messages one by one
-    const messageTimers = chatMessages.map((_, index) => {
+    // Animate messages with custom timing
+    const messageTimers = messageTimings.map((timing, index) => {
       return setTimeout(() => {
         setCurrentStep(index + 1);
-      }, 800 + index * 1200);
+      }, timing);
     });
 
-    // Show typing indicator after messages
+    // Show typing indicator after last message
     const typingTimer = setTimeout(() => {
       setShowTyping(true);
-    }, 800 + chatMessages.length * 1200);
+    }, 8000);
 
     // Show trip card after typing
     const cardTimer = setTimeout(() => {
       setShowTyping(false);
       setShowCard(true);
-    }, 800 + chatMessages.length * 1200 + 2000);
+    }, 10000);
 
     return () => {
       messageTimers.forEach(clearTimeout);
@@ -68,18 +82,26 @@ export const HeroAnimation = () => {
         {/* Chat header */}
         <div className="px-4 py-3 border-b border-border flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-sm">
-            🏖️
+            🟩
           </div>
           <div>
-            <h3 className="font-semibold text-sm">Miami Trip Squad</h3>
-            <p className="text-xs text-muted-foreground">Alex, Jordan, You</p>
+            <h3 className="font-semibold text-sm">Wordle 🟩</h3>
+            <p className="text-xs text-muted-foreground">Sarah, Mike, You</p>
           </div>
         </div>
 
         {/* Messages container */}
-        <div className="h-[400px] overflow-hidden px-4 py-4 space-y-3 bg-background">
+        <div 
+          ref={scrollContainerRef}
+          className="h-[400px] overflow-y-auto px-4 py-4 space-y-3 bg-background scroll-smooth"
+        >
           {chatMessages.slice(0, currentStep).map((msg, index) => (
-            <div key={index}>
+            <motion.div 
+              key={index}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
               {!msg.sender && (
                 <p className="text-xs text-muted-foreground ml-1 mb-1">{msg.name}</p>
               )}
@@ -87,10 +109,18 @@ export const HeroAnimation = () => {
                 message={msg.message}
                 sender={msg.sender}
               />
-            </div>
+            </motion.div>
           ))}
           
-          {showTyping && <TypingIndicator />}
+          {showTyping && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <p className="text-xs text-muted-foreground ml-1 mb-1">Sarah</p>
+              <TypingIndicator />
+            </motion.div>
+          )}
           
           {showCard && (
             <motion.div
@@ -98,15 +128,19 @@ export const HeroAnimation = () => {
               animate={{ opacity: 1, y: 0 }}
               className="pt-2"
             >
-              <p className="text-xs text-muted-foreground ml-1 mb-1">Alex</p>
+              <p className="text-xs text-muted-foreground ml-1 mb-1">Sarah</p>
               <TripPreviewCard
-                destination="Miami Beach"
-                dates="Mar 15 - 20"
+                destination="Las Vegas"
+                dates="Mar 22 - 25"
                 travelers={3}
-                pricePerPerson={847}
+                pricePerPerson={649}
+                imageUrl="https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=800&q=80"
               />
             </motion.div>
           )}
+          
+          {/* Scroll anchor */}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input bar */}
