@@ -1,12 +1,279 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { motion } from "framer-motion";
+import { HeroAnimation } from "../components/HeroAnimation";
+import { Button } from "@/components/ui/button";
+import { ArrowRight, Plane, Hotel, Users, CreditCard } from "lucide-react";
+import { Link } from "react-router-dom";
+
+const features = [
+  {
+    icon: Plane,
+    title: "Book Flights",
+    description: "Search and book real flights with live pricing",
+  },
+  {
+    icon: Hotel,
+    title: "Find Stays",
+    description: "Browse hotels and accommodations worldwide",
+  },
+  {
+    icon: Users,
+    title: "Split Costs",
+    description: "Automatic per-person cost calculation",
+  },
+  {
+    icon: CreditCard,
+    title: "One-Click Pay",
+    description: "Friends pay their share with a single link",
+  },
+];
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background overflow-hidden">
+      {/* Navigation */}
+      <motion.nav
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="fixed top-0 left-0 right-0 z-50 glass"
+      >
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">O</span>
+            </div>
+            <span className="font-semibold text-lg hidden sm:block">Out the Group Chat</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm">
+              Sign In
+            </Button>
+            <Button size="sm" className="rounded-full">
+              Get Started
+            </Button>
+          </div>
+        </div>
+      </motion.nav>
+
+      {/* Hero Section */}
+      <section className="pt-32 pb-20 px-4">
+        <div className="container mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+            {/* Left: Copy */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-center lg:text-left"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
+                Now with live flight booking
+              </motion.div>
+
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+                Stop planning in the
+                <span className="text-primary"> group chat.</span>
+                <br />
+                Start booking.
+              </h1>
+
+              <p className="text-lg text-muted-foreground mb-8 max-w-lg mx-auto lg:mx-0">
+                Pick a trip off the shelf. Let the plans make it out the group chat. 
+                Build complete getaways and share a single payment link with friends.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <Button size="lg" className="rounded-full text-base px-8 h-12 shadow-soft">
+                  Create a Trip
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+                <Button size="lg" variant="outline" className="rounded-full text-base px-8 h-12">
+                  Join a Trip
+                </Button>
+              </div>
+
+              {/* Social proof */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+                className="mt-10 flex items-center gap-4 justify-center lg:justify-start"
+              >
+                <div className="flex -space-x-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/80 to-accent/80 border-2 border-background"
+                    />
+                  ))}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">2,400+</span> trips planned
+                </p>
+              </motion.div>
+            </motion.div>
+
+            {/* Right: Phone Animation */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="relative"
+            >
+              <HeroAnimation />
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-20 px-4 bg-muted/30">
+        <div className="container mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Everything you need to book together
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              From flights to payments, we've got your group trip covered
+            </p>
+          </motion.div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="bg-card rounded-2xl p-6 shadow-soft border border-border"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                  <feature.icon className="w-6 h-6 text-primary" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
+                <p className="text-muted-foreground text-sm">{feature.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              How it works
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Plan, share, and book in three simple steps
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            {[
+              {
+                step: "1",
+                title: "Build your trip",
+                description: "Search flights, hotels, and add activities to create the perfect itinerary",
+              },
+              {
+                step: "2",
+                title: "Share the link",
+                description: "Send a beautiful trip preview to your group chat—everyone sees costs upfront",
+              },
+              {
+                step: "3",
+                title: "Friends pay, you're booked",
+                description: "Once everyone pays their share, the trip is automatically confirmed",
+              },
+            ].map((item, index) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: index * 0.15 }}
+                className="text-center"
+              >
+                <div className="w-14 h-14 rounded-full bg-primary text-primary-foreground font-bold text-xl flex items-center justify-center mx-auto mb-4">
+                  {item.step}
+                </div>
+                <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
+                <p className="text-muted-foreground text-sm">{item.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          className="container mx-auto"
+        >
+          <div className="relative bg-gradient-to-br from-primary to-primary/80 rounded-3xl p-8 sm:p-12 text-center overflow-hidden">
+            {/* Decorative bubbles */}
+            <div className="absolute top-4 left-8 w-16 h-16 bg-white/10 rounded-full blur-xl" />
+            <div className="absolute bottom-8 right-12 w-24 h-24 bg-white/10 rounded-full blur-xl" />
+            
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-primary-foreground mb-4 relative">
+              Ready to get out the group chat?
+            </h2>
+            <p className="text-primary-foreground/80 mb-8 max-w-lg mx-auto relative">
+              Stop endless back-and-forth. Start your first trip today.
+            </p>
+            <Button 
+              size="lg" 
+              variant="secondary" 
+              className="rounded-full text-base px-8 h-12 shadow-soft relative"
+            >
+              Create Your First Trip
+              <ArrowRight className="ml-2 w-4 h-4" />
+            </Button>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-8 px-4 border-t border-border">
+        <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-xs">O</span>
+            </div>
+            <span className="font-medium text-sm">Out the Group Chat</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            © 2024 Out the Group Chat. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
