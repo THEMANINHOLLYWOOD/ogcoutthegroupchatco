@@ -57,9 +57,15 @@ export const HeroAnimation = () => {
       setShowTyping(true);
     }, 8000);
 
-    // Show trip card after typing
+    // Show trip card after typing - add as a message so it stays in position
     const cardTimer = setTimeout(() => {
       setShowTyping(false);
+      setMessages(prev => [...prev, {
+        name: "Sarah",
+        message: "card",
+        sender: false,
+        isCard: true
+      }]);
       setShowCard(true);
     }, 10000);
 
@@ -178,10 +184,20 @@ export const HeroAnimation = () => {
               {!msg.sender && (
                 <p className="text-xs text-muted-foreground ml-1 mb-1">{msg.name}</p>
               )}
-              <ChatBubble
-                message={msg.message}
-                sender={msg.sender}
-              />
+              {msg.isCard ? (
+                <TripPreviewCard
+                  destination="Las Vegas"
+                  dates="Mar 22 - 25"
+                  travelers={3}
+                  pricePerPerson={649}
+                  imageUrl="https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=800&q=80"
+                />
+              ) : (
+                <ChatBubble
+                  message={msg.message}
+                  sender={msg.sender}
+                />
+              )}
             </motion.div>
           ))}
           
@@ -195,22 +211,6 @@ export const HeroAnimation = () => {
             </motion.div>
           )}
           
-          {showCard && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="pt-2"
-            >
-              <p className="text-xs text-muted-foreground ml-1 mb-1">Sarah</p>
-              <TripPreviewCard
-                destination="Las Vegas"
-                dates="Mar 22 - 25"
-                travelers={3}
-                pricePerPerson={649}
-                imageUrl="https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=800&q=80"
-              />
-            </motion.div>
-          )}
           
           {/* Scroll anchor */}
           <div ref={messagesEndRef} />

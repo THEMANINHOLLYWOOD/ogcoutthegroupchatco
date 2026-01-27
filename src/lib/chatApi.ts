@@ -4,6 +4,7 @@ export interface ChatMessage {
   name: string;
   message: string;
   sender: boolean;
+  isCard?: boolean;
 }
 
 export interface BotResponse {
