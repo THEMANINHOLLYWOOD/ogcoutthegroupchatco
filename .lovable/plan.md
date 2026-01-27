@@ -1,165 +1,153 @@
 
 
-# Fix Interactive Group Chat
+# Fix Hero Banner Text, Chat Message Position, and Bot Personality
 
-Resolve the edge function connectivity issue and improve the UI by removing the "Try chatting!" tooltip.
-
----
-
-## Root Cause Analysis
-
-The "Failed to fetch" error was caused by the edge function not being fully deployed/ready when the frontend tried to call it. The function has now been redeployed and verified working.
-
-**Test Results:**
-- Direct API call to edge function: Status 200, valid JSON response
-- Edge function logs: Shows successful boot
-- Function deployed successfully
+This plan addresses three issues:
+1. Update the hero banner tagline text
+2. Fix the Sarah card message staying in place (not re-animating on new messages)
+3. Update bot personalities to act suspicious of the user at first
 
 ---
 
-## Changes Required
+## Issue 1: Update Hero Banner Tagline
 
-### 1. Remove "Try chatting!" Tooltip
+**Current Text**: "Now with live flight booking"
 
-**File**: `src/components/HeroAnimation.tsx`
+**New Text**: "Don't just book flights, accommodations, and activities, book experiences."
 
-Remove the floating tooltip that appears above the input when interactive mode starts. This removes visual clutter and the element that may have been causing UI issues.
+### Change Required
 
-**Lines to remove (243-250):**
+**File**: `src/pages/Index.tsx` (line 76)
+
 ```tsx
-{isInteractive && !isLoading && (
-  <motion.div
-    initial={{ opacity: 0, scale: 0 }}
-    animate={{ opacity: 1, scale: 1 }}
-    className="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full whitespace-nowrap"
-  >
-    Try chatting! ✨
-  </motion.div>
-)}
+// Change from:
+Now with live flight booking
+
+// Change to:
+Don't just book flights, accommodations, and activities, book experiences.
 ```
 
-### 2. Improve Error Handling
+---
 
-**File**: `src/lib/chatApi.ts`
+## Issue 2: Fix Trip Card Position
 
-Add better error handling with retry logic and more descriptive error messages:
-- Add a retry mechanism for transient failures
-- Improve error messages to be user-friendly
-- Add logging for debugging
+### Problem
 
-### 3. Add Loading State Stability
+When the user sends a message, the trip card (showing Sarah's Vegas recommendation) keeps getting pushed down or re-animating. The card should stay in its original position once it appears.
+
+### Root Cause
+
+The `showCard` is rendered at the END of the messages list (after the `messages.map()`), so when new messages are added, the card appears to move down because it's always at the bottom.
+
+### Solution
+
+Instead of rendering the card separately, we need to add it as part of the message array once it appears. This way it maintains its position in the conversation history.
 
 **File**: `src/components/HeroAnimation.tsx`
 
-Ensure the UI doesn't "spaz out" during loading:
-- Keep typing indicator stable during API calls
-- Prevent multiple rapid submissions
-- Add debouncing to prevent race conditions
+1. Add a state to track if the card has been shown: `const [cardAddedToMessages, setCardAddedToMessages] = useState(false)`
 
----
+2. When the card timer fires, add a special "card message" to the messages array instead of just setting `showCard = true`
 
-## Implementation Details
+3. In the messages rendering, check if a message is the card message and render `TripPreviewCard` instead of `ChatBubble`
 
-### Updated chatApi.ts
+### Implementation
 
+Add a special message type for the card:
 ```typescript
-import { supabase } from "@/integrations/supabase/client";
-
-export interface ChatMessage {
+interface ChatMessage {
   name: string;
   message: string;
   sender: boolean;
-}
-
-export interface BotResponse {
-  name: "Sarah" | "Mike";
-  message: string;
-}
-
-export async function sendChatMessage(
-  messages: ChatMessage[], 
-  retries = 2
-): Promise<BotResponse> {
-  try {
-    const { data, error } = await supabase.functions.invoke("group-chat", {
-      body: { messages },
-    });
-
-    if (error) {
-      console.error("Error calling group-chat function:", error);
-      
-      // Retry on network errors
-      if (retries > 0 && error.message?.includes("fetch")) {
-        console.log(`Retrying... (${retries} attempts left)`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return sendChatMessage(messages, retries - 1);
-      }
-      
-      throw new Error("Connection failed. Please try again.");
-    }
-
-    if (data?.error) {
-      throw new Error(data.error);
-    }
-
-    if (!data?.name || !data?.message) {
-      throw new Error("Invalid response from chat");
-    }
-
-    return {
-      name: data.name,
-      message: data.message,
-    };
-  } catch (err) {
-    console.error("sendChatMessage error:", err);
-    throw err;
-  }
+  isCard?: boolean;  // New optional property
 }
 ```
 
-### Updated HeroAnimation.tsx (Input Section)
+When the card timer fires:
+```typescript
+const cardTimer = setTimeout(() => {
+  setShowTyping(false);
+  // Add card as a message so it stays in position
+  setMessages(prev => [...prev, {
+    name: "Sarah",
+    message: "card",
+    sender: false,
+    isCard: true
+  }]);
+  setShowCard(true); // Keep this to prevent re-adding
+}, 10000);
+```
 
-Remove the tooltip and add stability improvements:
-
+In the messages map, render the card when `isCard` is true:
 ```tsx
-{/* Input bar */}
-<div className="p-3 border-t border-border bg-card">
-  <div className="flex items-center gap-2">
-    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-      <span className="text-lg">+</span>
-    </div>
-    <div className="flex-1">
-      <input
-        ref={inputRef}
-        type="text"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={isInteractive ? "Type a message..." : "iMessage"}
-        disabled={!isInteractive || isLoading}
-        className={`
-          w-full bg-muted rounded-full px-4 py-2 text-sm
-          placeholder:text-muted-foreground
-          focus:outline-none focus:ring-2 focus:ring-primary/50
-          disabled:opacity-50 disabled:cursor-not-allowed
-          transition-all duration-300
-          ${isInteractive && !isLoading ? "ring-2 ring-primary/30" : ""}
-        `}
-      />
-    </div>
-    {isInteractive && (
-      <motion.button
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        onClick={handleSendMessage}
-        disabled={!inputValue.trim() || isLoading}
-        className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
-      >
-        <Send className="w-4 h-4" />
-      </motion.button>
+{messages.map((msg, index) => (
+  <motion.div key={index} ...>
+    {!msg.sender && (
+      <p className="text-xs text-muted-foreground ml-1 mb-1">{msg.name}</p>
     )}
-  </div>
-</div>
+    {msg.isCard ? (
+      <TripPreviewCard
+        destination="Las Vegas"
+        dates="Mar 22 - 25"
+        travelers={3}
+        pricePerPerson={649}
+        imageUrl="https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=800&q=80"
+      />
+    ) : (
+      <ChatBubble message={msg.message} sender={msg.sender} />
+    )}
+  </motion.div>
+))}
+```
+
+Remove the separate `{showCard && ...}` block since it's now part of messages.
+
+---
+
+## Issue 3: Suspicious Bot Personality
+
+### New Behavior
+
+When the user first sends a message in interactive mode, Sarah and Mike should:
+- Act like they don't recognize the user
+- Be suspicious and question who they're talking to
+- Ask "what did you do with our friend?" type questions
+- Gradually warm up after a few exchanges
+
+### System Prompt Update
+
+**File**: `supabase/functions/group-chat/index.ts`
+
+Update the `SYSTEM_PROMPT` to include the suspicious behavior:
+
+```typescript
+const SYSTEM_PROMPT = `You are roleplaying as TWO friends in a group chat: Sarah and Mike.
+
+PERSONALITIES:
+- Sarah: Enthusiastic, uses emojis frequently, loves planning and finding deals, gets excited easily, uses phrases like "omg", "yesss", "we NEED to"
+- Mike: Chill and laid-back, supportive but occasionally sarcastic, uses casual language like "bet", "tbh", "lol", keeps it real
+
+CONTEXT:
+The conversation started with everyone sharing their Wordle scores. The user (named "You" in the chat) got an impressive 2/6 and the group is now excited to celebrate with a Vegas trip. Sarah just shared a trip preview card for Las Vegas.
+
+IMPORTANT - SUSPICIOUS BEHAVIOR:
+When the user starts typing NEW messages (after the initial Wordle/Vegas conversation), you should be SUSPICIOUS of them:
+- Act like you don't recognize who's typing
+- Question if this is really your friend
+- Say things like "wait... who is this?", "um our friend doesn't talk like that", "what did you do with [name]??", "prove you're really you"
+- Mike might be more accusatory: "bro this ain't them... who hacked their phone?"
+- Sarah might be confused with emojis: "wait... 🤔 something feels off"
+- After 2-3 suspicious exchanges, you can start warming up if they seem genuine
+- This is playful suspicion, not hostile - you're friends joking around
+
+RULES:
+1. Respond as ONE character per message (either Sarah or Mike, not both)
+2. Keep responses SHORT and casual (1-2 sentences max, like real texts)
+3. Reference what others said in the chat to show you're paying attention
+4. For NEW user messages after the trip card: BE SUSPICIOUS first
+5. Alternate between Sarah and Mike naturally
+6. You MUST return valid JSON in this exact format: {"name": "Sarah", "message": "your message here"} or {"name": "Mike", "message": "your message here"}
+7. Do not include any text outside of the JSON object`;
 ```
 
 ---
@@ -168,16 +156,18 @@ Remove the tooltip and add stability improvements:
 
 | File | Changes |
 |------|---------|
-| `src/components/HeroAnimation.tsx` | Remove "Try chatting!" tooltip, remove pulse animation, stabilize loading states |
-| `src/lib/chatApi.ts` | Add retry logic and better error handling |
+| `src/pages/Index.tsx` | Update tagline text (line 76) |
+| `src/components/HeroAnimation.tsx` | Fix card position by adding it to messages array |
+| `src/lib/chatApi.ts` | Add `isCard` optional property to `ChatMessage` interface |
+| `supabase/functions/group-chat/index.ts` | Update system prompt for suspicious behavior |
 
 ---
 
 ## Summary
 
-1. **Edge function is working** - Verified with direct API call
-2. **Remove distracting tooltip** - Cleaner UI without the "Try chatting!" message
-3. **Add retry logic** - Handle transient network failures gracefully
-4. **Stabilize animations** - Remove pulse animation that may cause visual issues
-5. **Better error messages** - User-friendly feedback when things go wrong
+1. **Banner**: Change "Now with live flight booking" to "Don't just book flights, accommodations, and activities, book experiences."
+
+2. **Card Position**: Add the trip card to the messages array instead of rendering it separately, so it maintains its position as new messages are added.
+
+3. **Suspicious Bots**: Update the AI system prompt so Sarah and Mike act like they don't recognize the user when they first start typing, asking "what did you do with our friend?" before gradually warming up.
 
