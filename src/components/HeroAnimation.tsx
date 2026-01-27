@@ -3,8 +3,11 @@ import { ChatBubble } from "./ChatBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { TripPreviewCard } from "./TripPreviewCard";
 import { useState, useEffect, useRef } from "react";
+import { sendChatMessage, ChatMessage } from "@/lib/chatApi";
+import { toast } from "@/hooks/use-toast";
+import { Send } from "lucide-react";
 
-const chatMessages = [
+const initialMessages: ChatMessage[] = [
   { message: "Wordle 1,681 3/6\n\n⬜🟨⬜⬜🟩\n🟩⬜🟨🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Sarah" },
   { message: "Wordle 1,681 5/6\n\n⬜⬜⬜⬜⬜\n⬜🟨⬜🟨⬜\n🟨🟩⬜🟩⬜\n🟩🟩⬜🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Mike" },
   { message: "Wordle 1,681 2/6\n\n🟩🟩🟨⬜🟩\n🟩🟩🟩🟩🟩", sender: true, name: "You" },
@@ -18,13 +21,19 @@ const chatMessages = [
 const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
 export const HeroAnimation = () => {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [showCard, setShowCard] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
+  const [isInteractive, setIsInteractive] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [typingName, setTypingName] = useState("Sarah");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom when new messages appear (container only, not page)
+  // Auto-scroll to bottom when new messages appear
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
@@ -32,13 +41,14 @@ export const HeroAnimation = () => {
         behavior: 'smooth'
       });
     }
-  }, [currentStep, showTyping, showCard]);
+  }, [messages, showTyping, showCard]);
 
+  // Initial animation sequence
   useEffect(() => {
-    // Animate messages with custom timing
     const messageTimers = messageTimings.map((timing, index) => {
       return setTimeout(() => {
         setCurrentStep(index + 1);
+        setMessages(initialMessages.slice(0, index + 1));
       }, timing);
     });
 
@@ -53,12 +63,72 @@ export const HeroAnimation = () => {
       setShowCard(true);
     }, 10000);
 
+    // Enable interactive mode after card appears
+    const interactiveTimer = setTimeout(() => {
+      setIsInteractive(true);
+      // Focus the input when it becomes interactive
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }, 11000);
+
     return () => {
       messageTimers.forEach(clearTimeout);
       clearTimeout(typingTimer);
       clearTimeout(cardTimer);
+      clearTimeout(interactiveTimer);
     };
   }, []);
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || isLoading) return;
+
+    const userMessage: ChatMessage = {
+      name: "You",
+      message: inputValue.trim(),
+      sender: true,
+    };
+
+    // Add user message immediately
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInputValue("");
+    setIsLoading(true);
+    
+    // Randomly pick who's typing
+    const nextTyper = Math.random() > 0.5 ? "Sarah" : "Mike";
+    setTypingName(nextTyper);
+    setShowTyping(true);
+
+    try {
+      const response = await sendChatMessage(updatedMessages);
+      
+      setShowTyping(false);
+      
+      const botMessage: ChatMessage = {
+        name: response.name,
+        message: response.message,
+        sender: false,
+      };
+      
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setShowTyping(false);
+      toast({
+        title: "Oops!",
+        description: error instanceof Error ? error.message : "Failed to get response. Try again!",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
   return (
     <div className="relative w-full max-w-md mx-auto">
@@ -98,7 +168,7 @@ export const HeroAnimation = () => {
           ref={scrollContainerRef}
           className="h-[400px] overflow-y-auto px-4 py-4 space-y-3 bg-background scroll-smooth"
         >
-          {chatMessages.slice(0, currentStep).map((msg, index) => (
+          {messages.map((msg, index) => (
             <motion.div 
               key={index}
               initial={{ opacity: 0, y: 10 }}
@@ -120,7 +190,7 @@ export const HeroAnimation = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <p className="text-xs text-muted-foreground ml-1 mb-1">Sarah</p>
+              <p className="text-xs text-muted-foreground ml-1 mb-1">{typingName}</p>
               <TypingIndicator />
             </motion.div>
           )}
@@ -152,9 +222,45 @@ export const HeroAnimation = () => {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
               <span className="text-lg">+</span>
             </div>
-            <div className="flex-1 bg-muted rounded-full px-4 py-2">
-              <span className="text-sm text-muted-foreground">iMessage</span>
+            <div className="flex-1 relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isInteractive ? "Type a message..." : "iMessage"}
+                disabled={!isInteractive || isLoading}
+                className={`
+                  w-full bg-muted rounded-full px-4 py-2 text-sm
+                  placeholder:text-muted-foreground
+                  focus:outline-none focus:ring-2 focus:ring-primary/50
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  transition-all duration-300
+                  ${isInteractive ? "ring-2 ring-primary/30 animate-pulse" : ""}
+                `}
+              />
+              {isInteractive && !isLoading && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full whitespace-nowrap"
+                >
+                  Try chatting! ✨
+                </motion.div>
+              )}
             </div>
+            {isInteractive && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={handleSendMessage}
+                disabled={!inputValue.trim() || isLoading}
+                className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </motion.button>
+            )}
           </div>
         </div>
 
