@@ -39,17 +39,14 @@ const Index = () => {
       >
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">O</span>
-            </div>
-            <span className="font-semibold text-lg hidden sm:block">Out the Group Chat</span>
+            <span className="font-semibold text-lg">Out the Group Chat</span>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm">
               Sign In
             </Button>
             <Button size="sm" className="rounded-full">
-              Get Started
+              Getaway
             </Button>
           </div>
         </div>
@@ -264,14 +261,21 @@ const Index = () => {
       <footer className="py-8 px-4 border-t border-border">
         <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xs">O</span>
-            </div>
             <span className="font-medium text-sm">Out the Group Chat</span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            © 2024 Out the Group Chat. All rights reserved.
-          </p>
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://theburningstudio.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Contact
+            </a>
+            <p className="text-sm text-muted-foreground">
+              © 2026 Out the Group Chat. All rights reserved.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
