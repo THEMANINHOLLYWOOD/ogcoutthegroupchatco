@@ -1,198 +1,125 @@
 
-
-# Plan: Save Traveler & Friends ID/Passport Information
+# Plan: Itinerary Costs + Price Adjustment Feature
 
 ## Overview
 
-This feature enables users to save their own ID/passport information to their profile and also save friends' information for quick access when planning group trips. When a user uploads an ID during trip creation, they'll have the option to save it. They can also manage a "Travel Companions" list in their profile to quickly add friends to future trips.
+This feature adds two enhancements to the trip view:
+
+1. **Itinerary Costs in Breakdown**: Sum all activity costs from the itinerary and display them in the expandable cost summary alongside flights and accommodation.
+
+2. **Price Adjustment Controls**: Add minimalistic +/- buttons to each activity that has a cost. Clicking these triggers Gemini to find a cheaper or more expensive alternative activity in the same city, with ultra-smooth animations when the activity is replaced.
 
 ---
 
 ## User Flow
 
 ```text
-[Create Trip - ID Upload]
+[Trip View - Itinerary]
       |
-      | User uploads ID/passport
-      | AI extracts traveler info
+      | Each activity shows cost (if any)
+      | +/- buttons appear on hover/tap
       v
-[Review Screen]
+[User taps + or -]
       |
-      | "Save to My Profile" toggle (for own info)
-      | OR "Save as Travel Companion" (for friends)
+      | Activity enters "searching" state
+      | Subtle pulse/loading animation
       v
-[Confirm & Continue]
+[Gemini searches for alternative]
       |
-      | Saves to database if toggled on
+      | Finds activity above/below current price
       v
------------------------------------------
-[Add Travelers Step]
+[Smooth replacement animation]
       |
-      | "Add Traveler" button shows:
-      |   1. Saved companions list
-      |   2. Manual entry option
-      |   3. Scan new ID option
+      | Old activity fades/slides out
+      | New activity fades/slides in
+      | Cost updates in real-time
       v
-[Select saved companion]
+[Cost Breakdown updates]
       |
-      | Auto-fills name + origin
-      | Pre-populated passport info for booking
-      v
------------------------------------------
-[Profile Page - New "Companions" Tab]
-      |
-      | View saved travel companions
-      | Add/edit/delete companions
-      | Scan new companion ID
+      | "Activities" line item reflects new total
 ```
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Database Schema
+### Step 1: Update CostSummary Component
 
-Create two new tables:
+Add a new "Activities" section that sums all itinerary costs:
 
-**traveler_documents** - Stores the user's own travel document info:
-- `id` (uuid, primary key)
-- `user_id` (uuid, FK to profiles)
-- `document_type` (text) - passport, drivers_license, national_id
-- `full_legal_name` (text)
-- `first_name` (text)
-- `middle_name` (text, nullable)
-- `last_name` (text)
-- `date_of_birth` (date)
-- `gender` (text) - M, F, X
-- `nationality` (text, nullable)
-- `document_number` (text, encrypted-at-rest by Supabase)
-- `expiration_date` (date)
-- `issue_date` (date, nullable)
-- `place_of_birth` (text, nullable)
-- `issuing_country` (text, nullable)
-- `created_at` (timestamp)
-- `updated_at` (timestamp)
-
-**travel_companions** - Stores friends/family info:
-- `id` (uuid, primary key)
-- `user_id` (uuid, FK to profiles) - owner of this companion entry
-- `nickname` (text) - friendly name like "Mom", "Best Friend Jake"
-- `document_type` (text)
-- `full_legal_name` (text)
-- `first_name` (text)
-- `middle_name` (text, nullable)
-- `last_name` (text)
-- `date_of_birth` (date, nullable)
-- `gender` (text, nullable)
-- `nationality` (text, nullable)
-- `document_number` (text, nullable) - optional for privacy
-- `expiration_date` (date, nullable)
-- `home_airport_iata` (text, nullable) - default airport
-- `home_airport_name` (text, nullable)
-- `home_airport_city` (text, nullable)
-- `created_at` (timestamp)
-- `updated_at` (timestamp)
-
-**RLS Policies:**
-- Users can only SELECT, INSERT, UPDATE, DELETE their own documents/companions
-- No public access
-
-### Step 2: Create Traveler Service
-
-Create a new service file to manage saved travelers:
-
-**File: `src/lib/travelerService.ts`**
-
-Functions:
-- `saveUserDocument(userId, travelerInfo)` - Save/update user's own passport info
-- `getUserDocument(userId)` - Fetch user's saved document
-- `saveCompanion(userId, companionData)` - Add a travel companion
-- `getCompanions(userId)` - List all companions
-- `updateCompanion(companionId, data)` - Edit companion
-- `deleteCompanion(companionId)` - Remove companion
-
-### Step 3: Update TravelerReview Component
-
-Modify the review screen to include a save option:
-
-**File: `src/components/id-scan/TravelerReview.tsx`**
+**File: `src/components/trip/CostSummary.tsx`**
 
 Changes:
-- Add "Save to My Profile" switch toggle (only for authenticated users)
-- Add "Save as Travel Companion" option with nickname input
-- Call save function on confirm if toggled on
-- Show subtle success indicator when saved
+- Accept `itinerary` prop
+- Calculate total activities cost from all days
+- Display as a new expandable section with per-activity breakdown
+- Show activities cost per person (divided by traveler count)
 
-### Step 4: Create Companion Picker Component
+### Step 2: Update TripView to Pass Itinerary
 
-A new component to select from saved companions:
-
-**File: `src/components/trip-wizard/CompanionPicker.tsx`**
-
-Features:
-- Sheet/modal that slides up
-- List of saved companions with avatars
-- Search/filter functionality
-- "Scan New ID" option
-- "Enter Manually" option
-- Selection triggers callback with companion data
-
-### Step 5: Update AddTravelersStep
-
-Enhance the add travelers flow:
-
-**File: `src/components/trip-wizard/AddTravelersStep.tsx`**
+**File: `src/pages/TripView.tsx`**
 
 Changes:
-- "Add Traveler" button opens CompanionPicker instead of inline form
-- Show saved companions as quick-add cards
-- Selecting a companion auto-fills their info and default airport
-- Manual entry still available as fallback
+- Pass `itinerary` and `travelerCount` to CostSummary component
 
-### Step 6: Create Profile Companions Tab
+### Step 3: Create Alternative Activity Edge Function
 
-Add a new tab to the profile page:
+**File: `supabase/functions/find-alternative-activity/index.ts`**
 
-**File: `src/components/profile/TravelCompanions.tsx`**
+New edge function that:
+- Receives: tripId, dayNumber, activityIndex, currentActivity, priceDirection ('cheaper' | 'pricier'), destination, date
+- Uses Gemini to search for an alternative activity
+- Returns a new Activity object with updated cost
+- Optionally updates the trip in the database
 
-Features:
-- Grid of companion cards with avatars
-- Each card shows name, home airport, document expiry status
-- Add new companion button (opens ID scan flow)
-- Edit/delete actions
-- Empty state with friendly illustration
+### Step 4: Add Activity Service Functions
 
-### Step 7: Update Profile Page
+**File: `src/lib/tripService.ts`**
 
-Add the new tab:
+New functions:
+- `findAlternativeActivity(params)` - Calls the edge function
+- `updateActivityInItinerary(tripId, dayNumber, activityIndex, newActivity)` - Updates the database
 
-**File: `src/pages/Profile.tsx`**
+### Step 5: Update ActivityBubble with +/- Controls
 
-Changes:
-- Add "Companions" tab to the TabsList
-- Import and render TravelCompanions component
-
-### Step 8: Create Companion ID Scan Modal
-
-A reusable modal for scanning companion IDs:
-
-**File: `src/components/profile/AddCompanionModal.tsx`**
-
-Features:
-- Dialog/Sheet with ID upload flow
-- Uses existing IDUploadCard, IDProcessing components
-- After extraction, shows form with nickname field
-- Saves to travel_companions on confirm
-
-### Step 9: Update useAuth Hook (Optional Enhancement)
-
-Extend the Profile interface to include the user's own document:
-
-**File: `src/hooks/useAuth.tsx`**
+**File: `src/components/trip/ActivityBubble.tsx`**
 
 Changes:
-- Optionally fetch and include traveler document in profile context
-- Add `travelerDocument` to Profile interface
+- Add `onFindCheaper` and `onFindPricier` callback props
+- Add +/- buttons that appear on activities with costs
+- Show loading state when searching
+- Implement AnimatePresence for smooth swap animation
+
+### Step 6: Update DayCard to Handle Activity Replacement
+
+**File: `src/components/trip/DayCard.tsx`**
+
+Changes:
+- Add callback props for price adjustments
+- Pass tripId, dayNumber context to ActivityBubble
+- Handle loading states per activity
+
+### Step 7: Update ItineraryView to Orchestrate Changes
+
+**File: `src/components/trip/ItineraryView.tsx`**
+
+Changes:
+- Add `tripId`, `destinationCity`, `onActivityUpdate` props
+- Implement `handleFindAlternative` function
+- Track which activities are currently loading
+- Call service function and update local state optimistically
+
+### Step 8: Update TripView to Handle Itinerary Updates
+
+**File: `src/pages/TripView.tsx`**
+
+Changes:
+- Pass required props to ItineraryView
+- Handle activity updates from ItineraryView
+
+### Step 9: Update supabase/config.toml
+
+Add the new edge function configuration.
 
 ---
 
@@ -200,186 +127,228 @@ Changes:
 
 | File | Action | Description |
 |------|--------|-------------|
-| (Database Migration) | Create | traveler_documents and travel_companions tables |
-| `src/lib/travelerService.ts` | Create | CRUD functions for saved travelers |
-| `src/lib/tripTypes.ts` | Modify | Add SavedCompanion interface |
-| `src/components/id-scan/TravelerReview.tsx` | Modify | Add save toggle and logic |
-| `src/components/trip-wizard/CompanionPicker.tsx` | Create | Companion selection sheet |
-| `src/components/trip-wizard/AddTravelersStep.tsx` | Modify | Integrate companion picker |
-| `src/components/profile/TravelCompanions.tsx` | Create | Companions management tab |
-| `src/components/profile/AddCompanionModal.tsx` | Create | ID scan modal for companions |
-| `src/pages/Profile.tsx` | Modify | Add Companions tab |
+| `supabase/functions/find-alternative-activity/index.ts` | Create | AI-powered activity replacement |
+| `supabase/config.toml` | Modify | Add find-alternative-activity function |
+| `src/lib/tripService.ts` | Modify | Add findAlternativeActivity function |
+| `src/lib/tripTypes.ts` | Modify | Add ActivitySearchRequest type |
+| `src/components/trip/CostSummary.tsx` | Modify | Add itinerary costs section |
+| `src/components/trip/ActivityBubble.tsx` | Modify | Add +/- controls and swap animation |
+| `src/components/trip/DayCard.tsx` | Modify | Pass adjustment handlers |
+| `src/components/trip/ItineraryView.tsx` | Modify | Orchestrate activity replacement |
+| `src/pages/TripView.tsx` | Modify | Connect components and pass props |
 
 ---
 
 ## Technical Details
 
-### SavedCompanion Interface
+### Edge Function Prompt Structure
 
 ```typescript
-export interface SavedCompanion {
-  id: string;
-  user_id: string;
-  nickname: string;
-  full_legal_name: string;
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
-  date_of_birth?: string;
-  gender?: string;
-  nationality?: string;
-  document_number?: string;
-  expiration_date?: string;
-  home_airport_iata?: string;
-  home_airport_name?: string;
-  home_airport_city?: string;
-  created_at: string;
-  updated_at: string;
-}
+const prompt = `You are a travel expert. Find an alternative activity in ${destinationCity} on ${date}.
+
+CURRENT ACTIVITY:
+- Title: ${currentActivity.title}
+- Type: ${currentActivity.type}
+- Current Cost: $${currentActivity.estimated_cost}/person
+- Time: ${currentActivity.time}
+
+REQUIREMENT: Find a ${priceDirection === 'cheaper' ? 'CHEAPER' : 'MORE PREMIUM/EXPENSIVE'} alternative.
+
+${priceDirection === 'cheaper' 
+  ? `Target price: Under $${currentActivity.estimated_cost}/person. Could be free!`
+  : `Target price: Above $${currentActivity.estimated_cost}/person. More upscale/exclusive.`}
+
+Return a similar type of activity (${currentActivity.type}) but at the ${priceDirection === 'cheaper' ? 'lower' : 'higher'} price point.
+Maintain the same time slot.`;
 ```
 
-### CompanionPicker Animations
+### Activity Replacement Animation
 
-Staggered entry for companion cards:
+The key to ultra-smooth animation is using `AnimatePresence` with `mode="popLayout"`:
+
+```typescript
+<AnimatePresence mode="popLayout">
+  <motion.div
+    key={activity.title} // Unique key triggers animation on change
+    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+    layout
+    transition={{
+      type: "spring",
+      stiffness: 500,
+      damping: 30,
+    }}
+  >
+    {/* Activity content */}
+  </motion.div>
+</AnimatePresence>
+```
+
+### +/- Button Design
+
+Minimalistic, appearing on hover/focus:
+
 ```typescript
 <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: index * 0.05, type: "spring" }}
-/>
-```
-
-Sheet slide-up:
-```typescript
-<Sheet>
-  <SheetContent side="bottom" className="h-[80vh] rounded-t-3xl">
-    ...
-  </SheetContent>
-</Sheet>
-```
-
-### Save Toggle UI
-
-Minimalistic switch with label:
-```typescript
-<div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
-  <div>
-    <span className="font-medium">Save to My Profile</span>
-    <p className="text-xs text-muted-foreground">
-      Auto-fill on future trips
-    </p>
-  </div>
-  <Switch checked={saveToProfile} onCheckedChange={setSaveToProfile} />
-</div>
-```
-
-### Companion Card Design
-
-Compact card with essential info:
-```typescript
-<motion.div className="bg-card border border-border rounded-2xl p-4">
-  <div className="flex items-center gap-3">
-    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-      <User className="w-6 h-6 text-primary" />
-    </div>
-    <div className="flex-1">
-      <span className="font-medium">{companion.nickname}</span>
-      <div className="text-sm text-muted-foreground">
-        {companion.home_airport_iata || "No home airport"}
-      </div>
-    </div>
-    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-  </div>
+  initial={{ opacity: 0, scale: 0.8 }}
+  animate={{ opacity: 1, scale: 1 }}
+  className="flex items-center gap-1"
+>
+  <button
+    onClick={onFindCheaper}
+    className="w-6 h-6 rounded-full bg-muted hover:bg-muted/80 
+               flex items-center justify-center text-muted-foreground
+               hover:text-foreground transition-colors"
+  >
+    <Minus className="w-3 h-3" />
+  </button>
+  <button
+    onClick={onFindPricier}
+    className="w-6 h-6 rounded-full bg-muted hover:bg-muted/80
+               flex items-center justify-center text-muted-foreground
+               hover:text-foreground transition-colors"
+  >
+    <Plus className="w-3 h-3" />
+  </button>
 </motion.div>
+```
+
+### Loading State
+
+While searching for an alternative:
+
+```typescript
+{isSearching ? (
+  <motion.div
+    animate={{ opacity: [0.5, 1, 0.5] }}
+    transition={{ duration: 1, repeat: Infinity }}
+    className="absolute inset-0 bg-background/80 backdrop-blur-sm 
+               rounded-2xl flex items-center justify-center"
+  >
+    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+    <span className="ml-2 text-sm text-muted-foreground">
+      Finding alternatives...
+    </span>
+  </motion.div>
+) : null}
+```
+
+### Cost Calculation Helper
+
+```typescript
+function calculateItineraryCost(itinerary: Itinerary): number {
+  return itinerary.days.reduce((total, day) => {
+    return total + day.activities.reduce((dayTotal, activity) => {
+      return dayTotal + (activity.estimated_cost || 0);
+    }, 0);
+  }, 0);
+}
 ```
 
 ---
 
 ## UI/UX Details
 
-### TravelerReview Save Section
+### ActivityBubble Layout Update
 
-- Positioned below the form, before action buttons
-- Clean toggle with descriptive text
-- For authenticated users only (hide for guests)
-- Subtle animation when toggled
+Current cost display enhanced with +/- controls:
 
-### CompanionPicker Sheet
+```
+[10:00 AM] [Activity Bubble                              ]
+           [Icon] Title                    [$45/person +/-]
+           Description text here...
+           Tip: Some insider tip
+```
 
-- Bottom sheet on mobile (80% height)
-- Dialog on desktop
-- Search bar at top
-- Saved companions as vertical list
-- "Add New" section at bottom with options:
-  - Scan ID/Passport
-  - Enter Manually
+The +/- buttons appear:
+- Always visible on mobile (touch targets need to be accessible)
+- On hover on desktop
+- Highlighted when the activity has a cost > 0
 
-### Profile Companions Tab
+### CostSummary Activities Section
 
-- 2-column grid on mobile, 3-column on desktop
-- Each card shows:
-  - Avatar placeholder with initials
-  - Nickname (primary)
-  - Full name (secondary)
-  - Home airport code
-  - Document expiry warning if < 6 months
-- Empty state:
-  - Illustration of people
-  - "Add your first travel companion"
-  - "Scan their ID to auto-fill trip details"
+New section in the expandable breakdown:
 
-### Quick Add Flow
+```
+Trip Total: $3,240
+~$1,080/person
 
-In AddTravelersStep, when user has saved companions:
-- Show horizontal scroll of companion avatars
-- Tap to instantly add to trip
-- Long-press to view details
+[Expanded View]
+├── The Venetian Resort (4.5★)
+│   $299/night × 3 nights = $897
+│
+├── Activities & Experiences
+│   Day 1: $120 (3 activities)
+│   Day 2: $85 (4 activities)
+│   Day 3: $45 (2 activities)
+│   Total: $250/person
+│
+└── Per Person Breakdown
+    ├── John (from LAX): $1,080
+    ├── Sarah (from JFK): $1,120
+    └── Mike (from ORD): $1,040
+```
 
----
+### Animation Sequence for Activity Swap
 
-## Security Considerations
+1. User taps +/- button
+2. Button scales down slightly (haptic feedback feel)
+3. Activity bubble shows subtle overlay with spinner
+4. Old activity slides up and fades out
+5. New activity slides down and fades in
+6. Cost badge updates with a pop animation
+7. Total cost in header recalculates
 
-- All document info is protected by RLS
-- Users can only access their own data
-- Document numbers are optional for companions
-- Sensitive fields are never logged
-- Consider encrypting document_number column
-- Expiration dates can be used for booking reminders
+### Error Handling
+
+If the AI can't find an alternative:
+- Show subtle toast: "Couldn't find a {cheaper/pricier} option"
+- Activity returns to normal state
+- No change to itinerary
 
 ---
 
 ## Data Flow
 
 ```text
-[User uploads ID]
+[User taps "-" on $50 restaurant]
       |
       v
-[AI extracts TravelerInfo]
+[ItineraryView.handleFindAlternative()]
       |
+      | Set loading state for that activity
       v
-[User reviews & toggles "Save"]
+[tripService.findAlternativeActivity()]
       |
-      | If authenticated + save toggled:
+      | Call edge function
       v
-[travelerService.saveUserDocument()]
+[find-alternative-activity edge function]
       |
-      | Or for companions:
+      | Gemini search for cheaper restaurant
+      | Returns new Activity object
       v
-[travelerService.saveCompanion()]
+[Update local state optimistically]
       |
+      | Replace activity in itinerary
       v
-[Data stored in database]
+[Update database]
       |
------------------------------------------
-[Future trip creation]
-      |
+      | Save new itinerary to trips table
       v
-[CompanionPicker fetches saved companions]
+[Realtime subscription triggers]
       |
+      | Other users see the change
       v
-[User selects companion]
-      |
-      v
-[Auto-populates traveler with saved info]
+[UI animations complete]
 ```
 
+---
+
+## Security & Performance
+
+- Edge function uses service role key for database updates
+- Rate limiting inherited from Lovable AI gateway
+- Optimistic UI updates for responsiveness
+- Database update is non-blocking (fire and forget)
+- Only activities with costs show the +/- controls
