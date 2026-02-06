@@ -2,13 +2,13 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, ArrowRight, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { TravelerCard } from "./TravelerCard";
-import { AirportAutocomplete } from "./AirportAutocomplete";
+import { UserSearchPicker } from "./UserSearchPicker";
+import { ManualTravelerForm } from "./ManualTravelerForm";
 import { Airport } from "@/lib/airportSearch";
 import { Traveler } from "@/lib/tripTypes";
 import { TravelerInfo } from "@/lib/idExtraction";
+import { PlatformUser } from "@/lib/userService";
 
 interface AddTravelersStepProps {
   organizer: TravelerInfo;
@@ -34,30 +34,33 @@ export function AddTravelersStep({
     },
   ]);
   
-  const [isAddingTraveler, setIsAddingTraveler] = useState(false);
-  const [newTravelerName, setNewTravelerName] = useState("");
-  const [sameAirport, setSameAirport] = useState(true);
-  const [customOrigin, setCustomOrigin] = useState<Airport | null>(null);
+  const [showUserSearch, setShowUserSearch] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
 
-  const addTraveler = useCallback(() => {
-    if (!newTravelerName.trim()) return;
-
-    const origin = sameAirport ? defaultOrigin : customOrigin;
-    if (!origin) return;
-
+  const addPlatformUser = useCallback((user: PlatformUser) => {
     const newTraveler: Traveler = {
       id: crypto.randomUUID(),
-      name: newTravelerName.trim(),
+      name: user.full_name || "Unknown User",
+      origin: defaultOrigin, // Default to organizer's origin for platform users
+      isOrganizer: false,
+      user_id: user.id,
+      avatar_url: user.avatar_url || undefined,
+    };
+
+    setTravelers((prev) => [...prev, newTraveler]);
+  }, [defaultOrigin]);
+
+  const addManualTraveler = useCallback((name: string, origin: Airport) => {
+    const newTraveler: Traveler = {
+      id: crypto.randomUUID(),
+      name,
       origin,
       isOrganizer: false,
     };
 
     setTravelers((prev) => [...prev, newTraveler]);
-    setNewTravelerName("");
-    setIsAddingTraveler(false);
-    setSameAirport(true);
-    setCustomOrigin(null);
-  }, [newTravelerName, sameAirport, defaultOrigin, customOrigin]);
+    setShowManualForm(false);
+  }, []);
 
   const removeTraveler = useCallback((id: string) => {
     setTravelers((prev) => prev.filter((t) => t.id !== id));
@@ -66,6 +69,10 @@ export function AddTravelersStep({
   const handleContinue = () => {
     onContinue(travelers);
   };
+
+  const excludeUserIds = travelers
+    .filter(t => t.user_id)
+    .map(t => t.user_id!);
 
   return (
     <motion.div
@@ -95,90 +102,49 @@ export function AddTravelersStep({
               name={traveler.name}
               origin={traveler.origin}
               isOrganizer={traveler.isOrganizer}
+              avatarUrl={traveler.avatar_url}
+              userId={traveler.user_id}
               onRemove={traveler.isOrganizer ? undefined : () => removeTraveler(traveler.id)}
             />
           ))}
         </AnimatePresence>
       </div>
 
-      {/* Add Traveler Form */}
+      {/* Manual Entry Form */}
       <AnimatePresence>
-        {isAddingTraveler ? (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-muted/30 rounded-2xl p-4 mb-6 space-y-4 overflow-hidden"
-          >
-            <Input
-              value={newTravelerName}
-              onChange={(e) => setNewTravelerName(e.target.value)}
-              placeholder="Traveler's name"
-              className="h-12 rounded-xl bg-background"
-              autoFocus
-            />
-
-            {/* Same Airport Toggle */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">
-                Flying from {defaultOrigin.iata}?
-              </span>
-              <Switch
-                checked={sameAirport}
-                onCheckedChange={setSameAirport}
-              />
-            </div>
-
-            {/* Custom Origin */}
-            {!sameAirport && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <AirportAutocomplete
-                  value={customOrigin}
-                  onChange={setCustomOrigin}
-                  placeholder="Where are they flying from?"
-                />
-              </motion.div>
-            )}
-
-            {/* Form Actions */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsAddingTraveler(false);
-                  setNewTravelerName("");
-                  setSameAirport(true);
-                  setCustomOrigin(null);
-                }}
-                className="flex-1 rounded-xl"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={addTraveler}
-                disabled={!newTravelerName.trim() || (!sameAirport && !customOrigin)}
-                className="flex-1 rounded-xl"
-              >
-                Add
-              </Button>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            onClick={() => setIsAddingTraveler(true)}
-            className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-border rounded-2xl text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors mb-6"
-          >
-            <Plus className="w-5 h-5" />
-            <span className="font-medium">Add Traveler</span>
-          </motion.button>
+        {showManualForm && (
+          <ManualTravelerForm
+            defaultOrigin={defaultOrigin}
+            onAdd={addManualTraveler}
+            onCancel={() => setShowManualForm(false)}
+          />
         )}
       </AnimatePresence>
+
+      {/* Add Traveler Button */}
+      {!showManualForm && (
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          onClick={() => setShowUserSearch(true)}
+          className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-border rounded-2xl text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors mb-6"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="font-medium">Add Traveler</span>
+        </motion.button>
+      )}
+
+      {/* User Search Picker */}
+      <UserSearchPicker
+        open={showUserSearch}
+        onOpenChange={setShowUserSearch}
+        onSelectUser={addPlatformUser}
+        onManualEntry={() => {
+          setShowUserSearch(false);
+          setShowManualForm(true);
+        }}
+        excludeUserIds={excludeUserIds}
+      />
 
       {/* Trip Summary */}
       <div className="bg-muted/30 rounded-2xl p-4 mb-6">

@@ -1,17 +1,28 @@
 import { motion } from "framer-motion";
-import { User, MapPin, X } from "lucide-react";
+import { User, MapPin, X, CheckCircle2 } from "lucide-react";
 import { Airport, formatAirportShort } from "@/lib/airportSearch";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface TravelerCardProps {
   name: string;
   origin: Airport;
   isOrganizer: boolean;
+  avatarUrl?: string;
+  userId?: string;
   onRemove?: () => void;
   className?: string;
 }
 
-export function TravelerCard({ name, origin, isOrganizer, onRemove, className }: TravelerCardProps) {
+export function TravelerCard({ 
+  name, 
+  origin, 
+  isOrganizer, 
+  avatarUrl,
+  userId,
+  onRemove, 
+  className 
+}: TravelerCardProps) {
   return (
     <motion.div
       layout
@@ -25,12 +36,19 @@ export function TravelerCard({ name, origin, isOrganizer, onRemove, className }:
       )}
     >
       {/* Avatar */}
-      <div className={cn(
-        "w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0",
-        isOrganizer ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+      <Avatar className={cn(
+        "w-12 h-12 flex-shrink-0",
+        isOrganizer && !avatarUrl && "bg-primary text-primary-foreground"
       )}>
-        <User className="w-6 h-6" />
-      </div>
+        {avatarUrl ? (
+          <AvatarImage src={avatarUrl} alt={name} className="object-cover" />
+        ) : null}
+        <AvatarFallback className={cn(
+          isOrganizer ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        )}>
+          <User className="w-6 h-6" />
+        </AvatarFallback>
+      </Avatar>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -40,6 +58,9 @@ export function TravelerCard({ name, origin, isOrganizer, onRemove, className }:
             <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary font-medium">
               You
             </span>
+          )}
+          {userId && !isOrganizer && (
+            <CheckCircle2 className="w-4 h-4 text-primary" />
           )}
         </div>
         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
