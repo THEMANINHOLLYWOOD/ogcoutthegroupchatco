@@ -268,12 +268,105 @@ export function calculateSelectedActivitiesCost(
 
 export function getTotalAvailableActivitiesCost(itinerary: Itinerary | null): number {
   if (!itinerary?.days) return 0;
-  
-  return itinerary.days.reduce((total, day) => {
-    return total + day.activities.reduce((dayTotal, activity) => {
-      return dayTotal + (activity.estimated_cost || 0);
-    }, 0);
-  }, 0);
+}
+
+export async function addActivityToItinerary(
+  tripId: string,
+  dayNumber: number,
+  activity: Activity
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Fetch current itinerary
+    const { data, error: fetchError } = await supabase
+      .from("trips")
+      .select("itinerary")
+      .eq("id", tripId)
+      .single();
+
+    if (fetchError || !data) {
+      return { success: false, error: "Failed to fetch trip" };
+    }
+
+    const itinerary = (data.itinerary as unknown) as Itinerary | null;
+    if (!itinerary?.days) {
+      return { success: false, error: "No itinerary exists" };
+    }
+
+    // Find the day and add the activity
+    const dayIndex = itinerary.days.findIndex(d => d.day_number === dayNumber);
+    if (dayIndex === -1) {
+      return { success: false, error: "Day not found" };
+    }
+
+    itinerary.days[dayIndex].activities.push(activity);
+
+    // Update the trip
+    const { error: updateError } = await supabase
+      .from("trips")
+      .update({ itinerary: itinerary as unknown as never })
+      .eq("id", tripId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error adding activity:", err);
+    return { success: false, error: "Failed to add activity" };
+  }
+}
+
+export async function removeActivityFromItinerary(
+  tripId: string,
+  dayNumber: number,
+  activityIndex: number
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Fetch current itinerary
+    const { data, error: fetchError } = await supabase
+      .from("trips")
+      .select("itinerary")
+      .eq("id", tripId)
+      .single();
+
+    if (fetchError || !data) {
+      return { success: false, error: "Failed to fetch trip" };
+    }
+
+    const itinerary = (data.itinerary as unknown) as Itinerary | null;
+    if (!itinerary?.days) {
+      return { success: false, error: "No itinerary exists" };
+    }
+
+    // Find the day
+    const dayIndex = itinerary.days.findIndex(d => d.day_number === dayNumber);
+    if (dayIndex === -1) {
+      return { success: false, error: "Day not found" };
+    }
+
+    // Remove the activity
+    if (activityIndex < 0 || activityIndex >= itinerary.days[dayIndex].activities.length) {
+      return { success: false, error: "Activity not found" };
+    }
+
+    itinerary.days[dayIndex].activities.splice(activityIndex, 1);
+
+    // Update the trip
+    const { error: updateError } = await supabase
+      .from("trips")
+      .update({ itinerary: itinerary as unknown as never })
+      .eq("id", tripId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error removing activity:", err);
+    return { success: false, error: "Failed to remove activity" };
+  }
 }
 
 export async function claimTrip(tripId: string): Promise<{ success: boolean; error?: string }> {
