@@ -14,7 +14,205 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      travel_media: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          location: string | null
+          media_type: Database["public"]["Enums"]["media_type"]
+          url: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          media_type?: Database["public"]["Enums"]["media_type"]
+          url: string
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          media_type?: Database["public"]["Enums"]["media_type"]
+          url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "travel_media_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_photos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_photos_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visited_cities: {
+        Row: {
+          city_name: string
+          country: string
+          created_at: string
+          id: string
+          user_id: string
+          visited_date: string | null
+        }
+        Insert: {
+          city_name: string
+          country: string
+          created_at?: string
+          id?: string
+          user_id: string
+          visited_date?: string | null
+        }
+        Update: {
+          city_name?: string
+          country?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+          visited_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visited_cities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visited_countries: {
+        Row: {
+          continent: string
+          country_name: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          continent: string
+          country_name: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          continent?: string
+          country_name?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visited_countries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visited_states: {
+        Row: {
+          country: string
+          created_at: string
+          id: string
+          state_name: string
+          user_id: string
+        }
+        Insert: {
+          country: string
+          created_at?: string
+          id?: string
+          state_name: string
+          user_id: string
+        }
+        Update: {
+          country?: string
+          created_at?: string
+          id?: string
+          state_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visited_states_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +221,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      media_type: "photo" | "video"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +348,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      media_type: ["photo", "video"],
+    },
   },
 } as const

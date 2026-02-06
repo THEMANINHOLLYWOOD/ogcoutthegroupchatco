@@ -1,8 +1,16 @@
 import { motion } from "framer-motion";
 import { HeroAnimation } from "../components/HeroAnimation";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown, User, LogOut } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 const features = [
   {
@@ -28,6 +36,22 @@ const features = [
 ];
 
 const Index = () => {
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
+  const initials = profile?.full_name
+    ? profile.full_name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : user?.email?.slice(0, 2).toUpperCase() || 'U';
+
   return (
     <div className="min-h-screen bg-background overflow-hidden">
       {/* Navigation */}
@@ -42,11 +66,40 @@ const Index = () => {
             <span className="font-semibold text-lg">Out the Group Chat</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm">
-              Sign In
-            </Button>
-            <Button size="sm" className="rounded-full">
-              Getaway
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex items-center gap-2"
+                  >
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src={profile?.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </motion.button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/auth">Sign In</Link>
+              </Button>
+            )}
+            <Button size="sm" className="rounded-full" asChild>
+              <Link to="/create-trip">Getaway</Link>
             </Button>
           </div>
         </div>
