@@ -6,6 +6,8 @@ export interface Traveler {
   name: string;
   origin: Airport;
   isOrganizer: boolean;
+  user_id?: string;      // Platform user ID (if registered user)
+  avatar_url?: string;   // Profile photo URL
 }
 
 export interface TripSearch {
@@ -43,6 +45,8 @@ export interface TravelerCost {
   flight_cost: number;
   accommodation_share: number;
   subtotal: number;
+  user_id?: string;      // Platform user ID
+  avatar_url?: string;   // Profile photo for share image
 }
 
 export interface TripResult {

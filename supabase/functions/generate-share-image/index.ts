@@ -6,29 +6,63 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+interface TravelerData {
+  name: string;
+  avatar_url?: string | null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { tripId, destinationCity, destinationCountry, travelerCount } = await req.json();
+    const { tripId, destinationCity, destinationCountry, travelers, travelerCount } = await req.json();
 
-    console.log(`Generating share image for trip ${tripId}: ${travelerCount} travelers to ${destinationCity}, ${destinationCountry}`);
+    // Support both old format (travelerCount) and new format (travelers array)
+    const travelerList: TravelerData[] = travelers || [];
+    const count = travelerList.length || travelerCount || 1;
+
+    console.log(`Generating share image for trip ${tripId}: ${count} travelers to ${destinationCity}, ${destinationCountry}`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Generate image using Nano Banana (Gemini)
-    const prompt = `Generate a stunning travel photo: ${travelerCount} diverse friends enjoying ${destinationCity}, ${destinationCountry}. 
-Candid travel moment, golden hour lighting, vibrant colors, professional travel photography style. 
-Show iconic landmarks or scenery of ${destinationCity} in the background. 
-The friends should look happy and excited, capturing a perfect travel memory.
-16:9 aspect ratio, high quality, Instagram-worthy travel photo.`;
+    // Collect avatar URLs for multi-modal generation
+    const avatarUrls = travelerList
+      .map(t => t.avatar_url)
+      .filter((url): url is string => !!url);
 
-    console.log("Calling Nano Banana with prompt:", prompt);
+    console.log(`Found ${avatarUrls.length} traveler photos for reference`);
+
+    // Build the prompt
+    const basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
+Show ${count} diverse friends enjoying a famous landmark, golden hour lighting, vibrant colors.
+Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
+The friends should look happy and excited, capturing a perfect travel memory together.`;
+
+    // Build multi-modal content array
+    const contentArray: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      { type: "text", text: basePrompt }
+    ];
+
+    // Add reference photos if available
+    if (avatarUrls.length > 0) {
+      contentArray[0].text = `${basePrompt}
+
+IMPORTANT: Use the reference photos below as inspiration for the faces/appearance of the people in the image. Create realistic depictions of these travelers enjoying ${destinationCity} together.`;
+
+      for (const url of avatarUrls.slice(0, 4)) { // Limit to 4 reference photos
+        contentArray.push({
+          type: "image_url",
+          image_url: { url }
+        });
+      }
+    }
+
+    console.log("Calling Nano Banana with multi-modal content");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -40,7 +74,7 @@ The friends should look happy and excited, capturing a perfect travel memory.
         model: "google/gemini-2.5-flash-image",
         messages: [{
           role: "user",
-          content: prompt
+          content: contentArray
         }],
         modalities: ["image", "text"]
       }),

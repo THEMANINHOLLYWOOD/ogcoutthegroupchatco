@@ -429,7 +429,7 @@ export async function claimTrip(tripId: string): Promise<{ success: boolean; err
       return { success: false, error: "You must be logged in to claim a trip" };
     }
 
-    // First fetch the trip to get destination info
+    // First fetch the trip to get destination info and travelers
     const { data: tripData, error: fetchError } = await supabase
       .from("trips")
       .select("destination_city, destination_country, travelers")
@@ -440,6 +440,13 @@ export async function claimTrip(tripId: string): Promise<{ success: boolean; err
       console.error("Error fetching trip for claim:", fetchError);
       return { success: false, error: fetchError.message };
     }
+
+    // Get organizer's profile for avatar
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("avatar_url, full_name")
+      .eq("id", user.id)
+      .single();
 
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
@@ -458,14 +465,21 @@ export async function claimTrip(tripId: string): Promise<{ success: boolean; err
       return { success: false, error: error.message };
     }
 
-    // Trigger share image generation in background (fire and forget)
+    // Build traveler data with avatar URLs for share image generation
     const travelers = (tripData.travelers as unknown) as TravelerCost[];
+    const travelerData = travelers?.map((t, index) => ({
+      name: t.traveler_name,
+      // For the organizer (first traveler), use their profile avatar
+      avatar_url: index === 0 ? (profile?.avatar_url || t.avatar_url || null) : (t.avatar_url || null),
+    })) || [];
+
+    // Trigger share image generation in background with traveler photos
     supabase.functions.invoke("generate-share-image", {
       body: {
         tripId,
         destinationCity: tripData.destination_city,
         destinationCountry: tripData.destination_country,
-        travelerCount: travelers?.length || 1,
+        travelers: travelerData,
       },
     }).catch(err => {
       console.error("Error triggering share image generation:", err);
