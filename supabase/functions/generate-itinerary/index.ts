@@ -46,30 +46,27 @@ serve(async (req) => {
     const end = new Date(returnDate);
     const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
-    const prompt = `You are a world-class travel planner creating an unforgettable trip itinerary.
+    const prompt = `TRIP: ${destinationCity}, ${destinationCountry}
+DATES: ${departureDate} to ${returnDate} (${nights} nights)
+GROUP: ${travelerCount} people
+${accommodationName ? `STAYING: ${accommodationName}` : ""}
 
-TRIP DETAILS:
-- Destination: ${destinationCity}, ${destinationCountry}
-- Dates: ${departureDate} to ${returnDate} (${nights} nights)
-- Group Size: ${travelerCount} people
-${accommodationName ? `- Accommodation: ${accommodationName}` : ""}
+Include: landmarks, live events (${departureDate}-${returnDate}), dining, nightlife, local gems.
 
-Search for and include:
-1. MUST-SEE ATTRACTIONS: Classic landmarks and top experiences in ${destinationCity}
-2. LIVE EVENTS: Search for concerts, shows, sports events, festivals happening during ${departureDate} to ${returnDate}
-3. DINING: Best restaurants for groups, mix of casual and upscale options
-4. NIGHTLIFE: Top bars, clubs, experiences for groups
-5. LOCAL SECRETS: Off-the-beaten-path gems and local favorites
+WRITING STYLE - SMART BREVITY:
+- Overview: 1-2 punchy sentences. Lead with what makes this trip unique.
+- Day themes: 2-4 words max (e.g., "Downtown & Eats", "Desert Escape")
+- Descriptions: One sentence. Specific details only.
+- Tips: One sentence. Actionable insider knowledge only.
+- Highlights: 4-6 words each. Concrete, not generic.
 
-Create a day-by-day itinerary that:
-- Balances activities with downtime
-- Groups nearby attractions together
-- Includes specific times for each activity
-- Notes which activities are LIVE EVENTS with their exact dates
-- Estimates costs in USD where applicable
-- Provides insider tips for key activities
+BAD: "You'll absolutely love exploring the amazing sights and incredible atmosphere of this unforgettable destination!"
+GOOD: "Three days of poolside mornings, rooftop bars, and a desert sunset drive."
 
-IMPORTANT: Be specific about live events - search for real concerts, shows, and events happening during these exact dates.`;
+BAD: "This is a really great restaurant that serves delicious food with a wonderful atmosphere."
+GOOD: "Farm-to-table Italian. Book the patio."
+
+Group nearby attractions. Balance activities with downtime. Note LIVE EVENTS with exact dates.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -80,7 +77,7 @@ IMPORTANT: Be specific about live events - search for real concerts, shows, and 
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "You are a travel expert who creates detailed, personalized itineraries. Always search for current events and real attractions. Return structured data only." },
+          { role: "system", content: "You are a travel expert. Write with smart brevity: every word must earn its place. No filler. No fluff. Specific beats generic. Return structured data only." },
           { role: "user", content: prompt }
         ],
         tools: [
@@ -94,12 +91,12 @@ IMPORTANT: Be specific about live events - search for real concerts, shows, and 
                 properties: {
                   overview: {
                     type: "string",
-                    description: "A 2-3 sentence exciting overview of the trip"
+                    description: "1-2 sentences. Lead with what's unique. No generic excitement."
                   },
                   highlights: {
                     type: "array",
                     items: { type: "string" },
-                    description: "3-4 key highlights of the trip"
+                    description: "3-4 highlights, 4-6 words each. Concrete, not generic."
                   },
                   days: {
                     type: "array",
@@ -107,23 +104,23 @@ IMPORTANT: Be specific about live events - search for real concerts, shows, and 
                       type: "object",
                       properties: {
                         day_number: { type: "number" },
-                        date: { type: "string", description: "Date in YYYY-MM-DD format" },
-                        theme: { type: "string", description: "Theme for the day, e.g., 'Explore the Strip'" },
+                        date: { type: "string", description: "YYYY-MM-DD" },
+                        theme: { type: "string", description: "2-4 words. e.g., 'Downtown & Eats', 'Beach Day'" },
                         activities: {
                           type: "array",
                           items: {
                             type: "object",
                             properties: {
-                              time: { type: "string", description: "Time like '10:00 AM'" },
-                              title: { type: "string" },
-                              description: { type: "string" },
+                              time: { type: "string", description: "e.g., '10:00 AM'" },
+                              title: { type: "string", description: "Place or activity name" },
+                              description: { type: "string", description: "One sentence. Specific details only. No filler words." },
                               type: { 
                                 type: "string", 
                                 enum: ["attraction", "restaurant", "event", "travel", "free_time"]
                               },
-                              is_live_event: { type: "boolean", description: "True for concerts, shows, sports happening on specific dates" },
-                              estimated_cost: { type: "number", description: "Cost per person in USD" },
-                              tip: { type: "string", description: "Insider tip" }
+                              is_live_event: { type: "boolean", description: "True for concerts, shows, sports on specific dates" },
+                              estimated_cost: { type: "number", description: "USD per person" },
+                              tip: { type: "string", description: "One sentence. Actionable insider knowledge only." }
                             },
                             required: ["time", "title", "description", "type"]
                           }
