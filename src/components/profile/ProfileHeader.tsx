@@ -129,7 +129,7 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-      className="flex flex-col items-center py-8"
+      className="flex flex-col items-center py-6 sm:py-8 px-4"
     >
       <Dialog open={isOpen} onOpenChange={(open) => open ? setIsOpen(true) : handleClose()}>
         <DialogTrigger asChild>
@@ -138,22 +138,22 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
             whileTap={{ scale: 0.98 }}
             className="relative group cursor-pointer"
           >
-            <Avatar className="w-28 h-28 border-4 border-background shadow-lg">
+            <Avatar className="w-24 h-24 sm:w-28 sm:h-28 border-4 border-background shadow-lg">
               <AvatarImage 
                 src={avatarUrl || undefined} 
                 alt={fullName || 'User'} 
                 className="object-cover"
               />
-              <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">
+              <AvatarFallback className="text-xl sm:text-2xl font-semibold bg-primary/10 text-primary">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity">
               <Camera className="w-6 h-6 text-white" />
             </div>
           </motion.button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Update Profile Picture</DialogTitle>
           </DialogHeader>
@@ -168,7 +168,7 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
                   className="w-full"
                 >
                   {/* Cropper container */}
-                  <div className="relative w-full h-64 bg-muted rounded-xl overflow-hidden">
+                  <div className="relative w-full h-56 sm:h-64 bg-muted rounded-xl overflow-hidden">
                     <Cropper
                       image={previewUrl}
                       crop={crop}
@@ -204,11 +204,11 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
                   exit={{ opacity: 0 }}
                   className="flex flex-col items-center gap-4"
                 >
-                  <Avatar className="w-32 h-32">
+                  <Avatar className="w-28 h-28 sm:w-32 sm:h-32">
                     <AvatarImage src={avatarUrl || undefined} className="object-cover" />
-                    <AvatarFallback className="text-3xl bg-muted">{initials}</AvatarFallback>
+                    <AvatarFallback className="text-2xl sm:text-3xl bg-muted">{initials}</AvatarFallback>
                   </Avatar>
-                  <p className="text-sm text-muted-foreground text-center">
+                  <p className="text-sm text-muted-foreground text-center px-4">
                     Choose a photo to crop and upload
                   </p>
                 </motion.div>
@@ -233,11 +233,11 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
                       setCrop({ x: 0, y: 0 });
                       setZoom(1);
                     }}
-                    className="flex-1"
+                    className="flex-1 h-11 rounded-xl"
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleUpload} disabled={isUploading} className="flex-1">
+                  <Button onClick={handleUpload} disabled={isUploading} className="flex-1 h-11 rounded-xl">
                     {isUploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Save
                   </Button>
@@ -246,7 +246,7 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
                 <Button 
                   variant="outline" 
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full"
+                  className="w-full h-11 rounded-xl"
                 >
                   Choose Photo
                 </Button>
@@ -260,7 +260,7 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="mt-4 text-2xl font-bold"
+        className="mt-3 sm:mt-4 text-xl sm:text-2xl font-bold text-center"
       >
         {fullName || 'User'}
       </motion.h1>
@@ -268,7 +268,7 @@ export const ProfileHeader = ({ avatarUrl, fullName, email }: ProfileHeaderProps
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="text-muted-foreground"
+        className="text-muted-foreground text-sm sm:text-base text-center truncate max-w-full"
       >
         {email}
       </motion.p>
