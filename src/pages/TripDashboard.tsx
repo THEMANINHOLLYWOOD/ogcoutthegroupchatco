@@ -311,7 +311,13 @@ export default function TripDashboard() {
           transition={{ delay: 0.5 }}
           className="bg-card border border-border rounded-2xl p-4 sm:p-5"
         >
-          <ShareButton tripId={trip.id} shareCode={trip.share_code} isClaimed={true} />
+          <ShareButton 
+            tripId={trip.id} 
+            shareCode={trip.share_code} 
+            isClaimed={true}
+            destinationCity={trip.destination_city}
+            destinationCountry={trip.destination_country}
+          />
         </motion.div>
       </main>
 

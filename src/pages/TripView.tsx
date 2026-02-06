@@ -235,6 +235,8 @@ export default function TripView() {
               tripId={trip.id} 
               shareCode={trip.share_code} 
               isClaimed={!!trip.organizer_id}
+              destinationCity={trip.destination_city}
+              destinationCountry={trip.destination_country}
             />
           </div>
         </section>
