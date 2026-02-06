@@ -1,134 +1,256 @@
 
-
-# Plan: Auto-Add Current Location to Places Visited
+# Plan: Trip Sharing with AI-Generated Itineraries
 
 ## Overview
 
-When users first visit their profile or the "Places" tab, we'll prompt them to share their current location. Using the browser's Geolocation API combined with a reverse geocoding service (via a new edge function), we'll automatically populate their:
-- Current **city** (e.g., "Los Angeles")
-- Current **state/province** (e.g., "California")  
-- Current **country** (e.g., "United States")
-
-This creates a delightful onboarding experience where users see their travel history pre-populated with their home location.
+When users click "Share Trip", we'll save the trip to the database and generate a beautiful, shareable trip page at `/trip/:tripId`. This page features an AI-generated day-by-day itinerary created by Gemini with search grounding, finding both classic attractions and live events (concerts, festivals, etc.) happening during the trip dates. Anyone with the link can view the trip details without authentication.
 
 ---
 
 ## User Flow
 
 ```text
-[User Opens Profile → Places Tab]
-          |
-          v
-    [Check: Has user set home location?]
-          |
-    ┌─────┴─────┐
-    │ NO        │ YES
-    v           v
-[Show Location      [Show normal
- Prompt Modal]       Places UI]
-    |
-    | User clicks "Share My Location"
-    v
-[Browser Geolocation API]
-    |
-    | Get lat/lng coordinates
-    v
-[Edge Function: reverse-geocode]
-    |
-    | Returns city, state, country
-    v
-[Preview Location Card]
-    |
-    | User confirms or skips
-    v
-[Insert city, state, country to DB]
-    |
-    | Mark home_location_set = true
-    v
-[Show Success Animation]
+[Trip Summary Page]
+      |
+      | Click "Share Trip"
+      v
+[Create Trip in Database]
+      |
+      | Generate unique trip ID
+      v
+[Call generate-itinerary Edge Function]
+      |
+      | Gemini searches for:
+      | - Classic attractions in destination
+      | - Live events during trip dates
+      | - Restaurants & nightlife
+      v
+[Store itinerary in trip record]
+      |
+      v
+[Navigate to /trip/:tripId]
+      |
+      | Show shareable trip page with:
+      | - Trip overview header
+      | - Day-by-day itinerary (chat bubble style)
+      | - Cost breakdown per person
+      | - Copy link button
+      v
+[Anyone with link can view]
 ```
+
+---
+
+## URL Structure
+
+The trip page will use a clean, shareable URL format:
+
+```text
+/trip/:tripId
+
+Example: /trip/a1b2c3d4-e5f6-7890
+```
+
+This keeps URLs short and easy to share while the trip details (destination, dates, organizer) are displayed on the page itself.
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Database Migration
+### Step 1: Database Schema
 
-Add fields to track home location setup:
+Create a new `trips` table to persist trip data:
 
-**Modify `profiles` table:**
-- `home_city` (text, nullable) - User's current city
-- `home_state` (text, nullable) - User's current state/province
-- `home_country` (text, nullable) - User's current country
-- `home_location_set` (boolean, default false) - Whether location has been set
+**trips table:**
+- `id` (uuid, primary key) - Unique trip identifier for URL
+- `organizer_id` (uuid, nullable, FK to profiles) - Who created it (null for guests)
+- `organizer_name` (text) - Organizer's display name
+- `destination_city` (text) - e.g., "Las Vegas"
+- `destination_country` (text) - e.g., "United States"  
+- `destination_iata` (text) - e.g., "LAS"
+- `departure_date` (date)
+- `return_date` (date)
+- `travelers` (jsonb) - Array of traveler info with costs
+- `flights` (jsonb) - Flight data from search
+- `accommodation` (jsonb) - Hotel data from search
+- `cost_breakdown` (jsonb) - Per-person cost breakdown
+- `total_per_person` (numeric)
+- `trip_total` (numeric)
+- `itinerary` (jsonb, nullable) - AI-generated itinerary
+- `itinerary_status` (text) - 'pending' | 'generating' | 'complete' | 'failed'
+- `created_at` (timestamp)
+- `updated_at` (timestamp)
 
-This lets us:
-1. Know if we should show the location prompt
-2. Store their home location for future reference (e.g., default departure airport)
+**RLS Policy:**
+- Anyone can SELECT (public viewing of trips)
+- Authenticated users can INSERT (create trips)
+- Only organizer can UPDATE their own trips
 
-### Step 2: Create Reverse Geocoding Edge Function
+### Step 2: Create generate-itinerary Edge Function
 
-**File: `supabase/functions/reverse-geocode/index.ts`**
+**File: `supabase/functions/generate-itinerary/index.ts`**
 
-Edge function that:
-1. Receives latitude/longitude coordinates
-2. Uses a free reverse geocoding API (OpenStreetMap Nominatim or Google's free tier via Gemini)
-3. Returns structured location data (city, state, country)
+This function uses Gemini 3 Flash to create a personalized day-by-day itinerary:
 
-We'll use OpenStreetMap's Nominatim API (free, no API key required):
+1. Receives trip details (destination, dates, traveler count)
+2. Builds a prompt asking Gemini to search for:
+   - Top attractions and landmarks in the destination
+   - Live events, concerts, festivals happening during the exact dates
+   - Best restaurants and nightlife spots
+   - Day-by-day schedule optimized for the group
+3. Uses structured output (tool calling) to return formatted itinerary
+
+**Itinerary structure:**
 ```typescript
-// Example: https://nominatim.openstreetmap.org/reverse?lat=34.0522&lon=-118.2437&format=json
+interface Itinerary {
+  overview: string;  // Brief trip description
+  highlights: string[];  // 3-4 trip highlights
+  days: DayPlan[];
+}
+
+interface DayPlan {
+  day_number: number;
+  date: string;
+  theme: string;  // e.g., "Explore the Strip"
+  activities: Activity[];
+}
+
+interface Activity {
+  time: string;  // e.g., "10:00 AM"
+  title: string;  // e.g., "Bellagio Fountains"
+  description: string;
+  type: 'attraction' | 'restaurant' | 'event' | 'travel' | 'free_time';
+  is_live_event?: boolean;  // For concerts, shows, etc.
+  estimated_cost?: number;
+  tip?: string;  // Insider tip
+}
 ```
 
-### Step 3: Create Location Prompt Component
+### Step 3: Update Trip Types
 
-**File: `src/components/profile/LocationPrompt.tsx`**
+**File: `src/lib/tripTypes.ts`**
 
-A beautiful modal/card that appears when `home_location_set` is false:
-- Friendly illustration or icon (MapPin animation)
-- Header: "Where do you call home?"
-- Subtext: "We'll add your current city to your travel history"
-- Primary button: "Share My Location" (with location icon)
-- Secondary button: "I'll add it manually"
-- Privacy note: "Your exact location is not stored"
+Add new types for saved trips and itineraries:
 
-### Step 4: Create Location Detection Hook
+```typescript
+export interface SavedTrip {
+  id: string;
+  organizer_name: string;
+  destination_city: string;
+  destination_country: string;
+  destination_iata: string;
+  departure_date: string;
+  return_date: string;
+  travelers: TravelerCost[];
+  accommodation: AccommodationOption;
+  total_per_person: number;
+  trip_total: number;
+  itinerary: Itinerary | null;
+  itinerary_status: 'pending' | 'generating' | 'complete' | 'failed';
+}
 
-**File: `src/hooks/useLocationDetection.ts`**
+export interface Itinerary {
+  overview: string;
+  highlights: string[];
+  days: DayPlan[];
+}
 
-Custom hook that handles:
-- Browser geolocation permission request
-- Loading/error states
-- Calling the reverse-geocode edge function
-- Returning city, state, country data
+export interface DayPlan {
+  day_number: number;
+  date: string;
+  theme: string;
+  activities: Activity[];
+}
 
-### Step 5: Create Location Preview Component
+export interface Activity {
+  time: string;
+  title: string;
+  description: string;
+  type: 'attraction' | 'restaurant' | 'event' | 'travel' | 'free_time';
+  is_live_event?: boolean;
+  estimated_cost?: number;
+  tip?: string;
+}
+```
 
-**File: `src/components/profile/LocationPreview.tsx`**
+### Step 4: Create Trip Service
 
-After detection, show a preview card:
-- Flag emoji for the country
-- City, State, Country displayed beautifully
-- "This looks right!" confirm button
-- "That's not quite right" edit option
-- Animated checkmarks for each item being added
+**File: `src/lib/tripService.ts`**
 
-### Step 6: Update PlacesVisited Component
+Functions to manage trips:
 
-**File: `src/components/profile/PlacesVisited.tsx`**
+- `saveTrip(tripData)` - Creates trip in database, returns trip ID
+- `fetchTrip(tripId)` - Fetches trip by ID for viewing
+- `generateItinerary(tripId)` - Triggers itinerary generation
 
-Modify to:
-1. Check if `home_location_set` is false in profile
-2. If false, show LocationPrompt before the main content
-3. After location is set, auto-add city/state/country (avoiding duplicates)
-4. Update profile.home_location_set to true
+### Step 5: Update CreateTrip Page - Share Handler
 
-### Step 7: Update Auth Hook and Profile Type
+**File: `src/pages/CreateTrip.tsx`**
 
-**File: `src/hooks/useAuth.tsx`**
+Update `handleShareTrip` to:
+1. Save trip to database
+2. Navigate to `/trip/:tripId`
+3. Show loading toast during save
 
-Add new fields to Profile interface:
-- home_city, home_state, home_country, home_location_set
+### Step 6: Create Trip View Page
+
+**File: `src/pages/TripView.tsx`**
+
+A beautiful, Apple-inspired trip page with:
+
+**Header Section:**
+- Large destination image (Unsplash)
+- Destination city and country
+- Date range and traveler count
+- Organizer name
+
+**Itinerary Section (chat-style):**
+- Day tabs or vertical timeline
+- Each day shows activities as iMessage-style bubbles
+- Live events highlighted with special styling (pulsing dot)
+- Activities stagger in with spring animations
+
+**Cost Section:**
+- Collapsible per-person breakdown
+- Total prominently displayed
+
+**Share Section:**
+- "Copy Link" button with success animation
+- Share via native share sheet on mobile
+
+### Step 7: Create Itinerary Components
+
+**File: `src/components/trip/ItineraryView.tsx`**
+Main itinerary container with day navigation
+
+**File: `src/components/trip/DayCard.tsx`**
+Single day with activities list
+
+**File: `src/components/trip/ActivityBubble.tsx`**
+Individual activity rendered as a chat bubble with:
+- Time badge
+- Activity title and description
+- Type icon (attractions, food, event, etc.)
+- Live event indicator (pulsing red dot)
+- Cost if applicable
+
+**File: `src/components/trip/ItinerarySkeleton.tsx`**
+Loading skeleton while itinerary generates
+
+**File: `src/components/trip/TripHeader.tsx`**
+Hero section with destination image
+
+**File: `src/components/trip/ShareButton.tsx`**
+Copy link functionality with animation
+
+### Step 8: Update App Routes
+
+**File: `src/App.tsx`**
+
+Add new route:
+```tsx
+<Route path="/trip/:tripId" element={<TripView />} />
+```
 
 ---
 
@@ -136,67 +258,101 @@ Add new fields to Profile interface:
 
 | File | Action | Description |
 |------|--------|-------------|
-| (Database Migration) | Create | Add home location fields to profiles |
-| `supabase/functions/reverse-geocode/index.ts` | Create | Geocoding edge function |
-| `supabase/config.toml` | Modify | Add reverse-geocode function |
-| `src/hooks/useLocationDetection.ts` | Create | Location detection hook |
-| `src/components/profile/LocationPrompt.tsx` | Create | Initial prompt modal |
-| `src/components/profile/LocationPreview.tsx` | Create | Preview and confirm UI |
-| `src/components/profile/PlacesVisited.tsx` | Modify | Integrate location prompt |
-| `src/hooks/useAuth.tsx` | Modify | Update Profile interface |
+| (Database Migration) | Create | trips table with RLS policies |
+| `supabase/functions/generate-itinerary/index.ts` | Create | AI itinerary generation |
+| `supabase/config.toml` | Modify | Add generate-itinerary function |
+| `src/lib/tripTypes.ts` | Modify | Add SavedTrip, Itinerary types |
+| `src/lib/tripService.ts` | Create | Trip CRUD operations |
+| `src/pages/TripView.tsx` | Create | Public trip view page |
+| `src/pages/CreateTrip.tsx` | Modify | Update share handler |
+| `src/components/trip/ItineraryView.tsx` | Create | Itinerary container |
+| `src/components/trip/DayCard.tsx` | Create | Day section component |
+| `src/components/trip/ActivityBubble.tsx` | Create | Activity chat bubble |
+| `src/components/trip/ItinerarySkeleton.tsx` | Create | Loading state |
+| `src/components/trip/TripHeader.tsx` | Create | Hero header |
+| `src/components/trip/ShareButton.tsx` | Create | Share functionality |
+| `src/App.tsx` | Modify | Add /trip/:tripId route |
 
 ---
 
 ## Technical Details
 
-### Reverse Geocoding Edge Function
+### Gemini Prompt for Itinerary Generation
 
-Using OpenStreetMap Nominatim (free, no API key):
+```text
+You are a world-class travel planner creating an unforgettable trip itinerary.
 
-```typescript
-const response = await fetch(
-  `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
-  {
-    headers: {
-      'User-Agent': 'OutTheGroupChat/1.0'
-    }
-  }
-);
+TRIP DETAILS:
+- Destination: Las Vegas, United States
+- Dates: March 22-25, 2025 (3 nights)
+- Group Size: 3 people
+- Accommodation: The Venetian Resort
 
-const data = await response.json();
-// data.address contains: city, state, country, etc.
+Search for and include:
+1. MUST-SEE ATTRACTIONS: Classic landmarks and experiences in Las Vegas
+2. LIVE EVENTS: Search for concerts, shows, sports, festivals happening March 22-25, 2025
+3. DINING: Best restaurants for groups, mix of casual and upscale
+4. NIGHTLIFE: Top bars, clubs, experiences
+5. LOCAL SECRETS: Off-the-beaten-path gems
+
+Create a day-by-day itinerary that:
+- Balances activities with downtime
+- Groups nearby attractions together
+- Includes specific times
+- Notes which activities are live events with exact dates
+- Estimates costs where applicable
 ```
 
-### Duplicate Prevention
+### Activity Type Icons
 
-Before inserting, check if place already exists:
+- `attraction` - Landmark icon
+- `restaurant` - Utensils icon
+- `event` - Ticket icon (with pulsing indicator for live)
+- `travel` - Plane/Car icon
+- `free_time` - Coffee icon
 
-```typescript
-// Check if city already exists for user
-const { data: existingCity } = await supabase
-  .from('visited_cities')
-  .select('id')
-  .eq('user_id', userId)
-  .eq('city_name', city)
-  .eq('country', country)
-  .maybeSingle();
+### Animation Patterns
 
-if (!existingCity) {
-  // Insert new city
-}
-```
-
-### Animation Pattern
-
-When places are auto-added, use staggered animations:
-
+**Page Entry:**
 ```typescript
 <motion.div
-  initial={{ opacity: 0, scale: 0.8, y: 20 }}
-  animate={{ opacity: 1, scale: 1, y: 0 }}
-  transition={{ delay: index * 0.2, type: 'spring' }}
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ duration: 0.6 }}
+/>
+```
+
+**Activity Bubbles (staggered):**
+```typescript
+<motion.div
+  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+  animate={{ opacity: 1, y: 0, scale: 1 }}
+  transition={{ 
+    delay: index * 0.1,
+    type: "spring",
+    stiffness: 400,
+    damping: 25
+  }}
+/>
+```
+
+**Live Event Indicator:**
+```typescript
+<motion.div
+  animate={{ scale: [1, 1.2, 1] }}
+  transition={{ duration: 1.5, repeat: Infinity }}
+  className="w-2 h-2 rounded-full bg-red-500"
+/>
+```
+
+**Copy Link Success:**
+```typescript
+<motion.div
+  initial={{ scale: 0 }}
+  animate={{ scale: 1 }}
+  transition={{ type: "spring" }}
 >
-  ✓ Added {city}
+  <Check className="text-green-500" />
 </motion.div>
 ```
 
@@ -204,35 +360,60 @@ When places are auto-added, use staggered animations:
 
 ## UI/UX Details
 
-### Location Prompt Modal
+### Trip Page Design (Apple-inspired)
 
-- Subtle glass background
-- Large MapPin icon with pulsing animation
-- Friendly, conversational copy
-- Clear privacy messaging
-- Smooth fade-in on mount
+**Hero Section:**
+- Full-bleed destination photo with gradient overlay
+- Large destination name in SF Pro Display style
+- Dates as a subtle pill badge
+- Minimal, clean aesthetic
 
-### Location Preview Card
+**Day Navigation:**
+- Horizontal scrolling day pills
+- Active day highlighted with primary color
+- Sticky to top on scroll
 
-- Country flag prominently displayed
-- City name large and bold
-- State and country in smaller text below
-- Green checkmarks appearing one by one
-- Confetti or particle effect on confirm
+**Activity Timeline:**
+- Vertical timeline with time labels
+- Activities as rounded cards with subtle shadows
+- Live events have colored left border + pulsing indicator
+- Icons match activity type
 
-### Error States
+**Cost Summary:**
+- Expandable accordion
+- Each person's breakdown
+- Total in large, bold text
 
-- Geolocation denied: "No worries! You can add places manually"
-- API error: Retry button with "Having trouble detecting your location"
-- Outside known regions: Show what we found with edit option
+**Share Footer:**
+- Sticky bottom bar on mobile
+- "Copy Link" primary action
+- Native share fallback
+
+### Responsive Behavior
+
+**Mobile:**
+- Single column layout
+- Bottom sticky share bar
+- Swipe between days
+
+**Desktop:**
+- Two column: Itinerary left, Cost right
+- Horizontal day tabs
+- Fixed share button in header
+
+### Loading States
+
+While itinerary generates:
+- Show trip header immediately
+- Skeleton animation for itinerary
+- Animated "Building your itinerary..." message
+- Progress indicators per day as they stream in (future enhancement)
 
 ---
 
-## Privacy Considerations
+## Security Considerations
 
-- Only city/state/country stored (not exact coordinates)
-- User must explicitly opt-in to share location
-- Clear messaging about what data is stored
-- Easy skip option for privacy-conscious users
-- Coordinates are only used for reverse geocoding, never persisted
-
+- Trip pages are public (anyone with link can view)
+- No sensitive data exposed (just names, destinations, costs)
+- Trip creation requires being on the app (no auth required initially)
+- Future: Add password protection option for private trips
