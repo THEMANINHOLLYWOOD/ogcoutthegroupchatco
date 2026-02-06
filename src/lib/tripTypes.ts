@@ -52,3 +52,66 @@ export interface TripResult {
   total_per_person: number;
   trip_total: number;
 }
+
+// Saved trip types for database persistence
+export interface SavedTrip {
+  id: string;
+  organizer_id: string | null;
+  organizer_name: string;
+  destination_city: string;
+  destination_country: string;
+  destination_iata: string;
+  departure_date: string;
+  return_date: string;
+  travelers: TravelerCost[];
+  flights: FlightOption[];
+  accommodation: AccommodationOption | null;
+  cost_breakdown: TravelerCost[];
+  total_per_person: number;
+  trip_total: number;
+  itinerary: Itinerary | null;
+  itinerary_status: 'pending' | 'generating' | 'complete' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+// AI-generated itinerary types
+export interface Itinerary {
+  overview: string;
+  highlights: string[];
+  days: DayPlan[];
+}
+
+export interface DayPlan {
+  day_number: number;
+  date: string;
+  theme: string;
+  activities: Activity[];
+}
+
+export interface Activity {
+  time: string;
+  title: string;
+  description: string;
+  type: 'attraction' | 'restaurant' | 'event' | 'travel' | 'free_time';
+  is_live_event?: boolean;
+  estimated_cost?: number;
+  tip?: string;
+}
+
+// Input types for saving trips
+export interface SaveTripInput {
+  organizerId?: string;
+  organizerName: string;
+  destinationCity: string;
+  destinationCountry: string;
+  destinationIata: string;
+  departureDate: string;
+  returnDate: string;
+  travelers: TravelerCost[];
+  flights: FlightOption[];
+  accommodation: AccommodationOption | null;
+  costBreakdown: TravelerCost[];
+  totalPerPerson: number;
+  tripTotal: number;
+}

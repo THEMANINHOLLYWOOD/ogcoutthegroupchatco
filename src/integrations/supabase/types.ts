@@ -94,6 +94,77 @@ export type Database = {
           },
         ]
       }
+      trips: {
+        Row: {
+          accommodation: Json | null
+          cost_breakdown: Json | null
+          created_at: string
+          departure_date: string
+          destination_city: string
+          destination_country: string
+          destination_iata: string
+          flights: Json | null
+          id: string
+          itinerary: Json | null
+          itinerary_status: string
+          organizer_id: string | null
+          organizer_name: string
+          return_date: string
+          total_per_person: number
+          travelers: Json
+          trip_total: number
+          updated_at: string
+        }
+        Insert: {
+          accommodation?: Json | null
+          cost_breakdown?: Json | null
+          created_at?: string
+          departure_date: string
+          destination_city: string
+          destination_country: string
+          destination_iata: string
+          flights?: Json | null
+          id?: string
+          itinerary?: Json | null
+          itinerary_status?: string
+          organizer_id?: string | null
+          organizer_name: string
+          return_date: string
+          total_per_person?: number
+          travelers?: Json
+          trip_total?: number
+          updated_at?: string
+        }
+        Update: {
+          accommodation?: Json | null
+          cost_breakdown?: Json | null
+          created_at?: string
+          departure_date?: string
+          destination_city?: string
+          destination_country?: string
+          destination_iata?: string
+          flights?: Json | null
+          id?: string
+          itinerary?: Json | null
+          itinerary_status?: string
+          organizer_id?: string | null
+          organizer_name?: string
+          return_date?: string
+          total_per_person?: number
+          travelers?: Json
+          trip_total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_photos: {
         Row: {
           caption: string | null

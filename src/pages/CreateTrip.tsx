@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Shield, Lock } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { IDUploadCard } from "@/components/id-scan/IDUploadCard";
 import { IDProcessing } from "@/components/id-scan/IDProcessing";
 import { TravelerReview } from "@/components/id-scan/TravelerReview";
@@ -13,7 +13,9 @@ import { extractTravelerInfo, TravelerInfo } from "@/lib/idExtraction";
 import { Airport } from "@/lib/airportSearch";
 import { Traveler, TripResult } from "@/lib/tripTypes";
 import { searchTrip } from "@/lib/tripSearch";
+import { saveTrip } from "@/lib/tripService";
 import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 type Step = "upload" | "processing" | "review" | "trip-details" | "travelers" | "searching" | "summary";
 type ProcessingStatus = "scanning" | "extracting" | "complete";
@@ -31,10 +33,12 @@ const stepNumbers: Record<Step, number> = {
 const totalSteps = 4;
 
 export default function CreateTrip() {
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("upload");
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("scanning");
   const [travelerInfo, setTravelerInfo] = useState<TravelerInfo | null>(null);
   const [imagePreview, setImagePreview] = useState<string | undefined>();
+  const [isSharing, setIsSharing] = useState(false);
   
   // Trip state
   const [destination, setDestination] = useState<Airport | null>(null);
@@ -154,12 +158,44 @@ export default function CreateTrip() {
     setTripResult(null);
   }, []);
 
-  const handleShareTrip = useCallback(() => {
+  const handleShareTrip = useCallback(async () => {
+    if (!tripResult || !destination || !departureDate || !returnDate || !travelerInfo) return;
+    
+    setIsSharing(true);
     toast({
-      title: "Coming Soon",
-      description: "Trip sharing will be available soon!",
+      title: "Creating your trip...",
+      description: "Hang tight while we set everything up",
     });
-  }, []);
+
+    const organizerName = `${travelerInfo.first_name || ""} ${travelerInfo.last_name || ""}`.trim() || "Traveler";
+    
+    const result = await saveTrip({
+      organizerName,
+      destinationCity: destination.city,
+      destinationCountry: destination.country,
+      destinationIata: destination.iata,
+      departureDate: format(departureDate, "yyyy-MM-dd"),
+      returnDate: format(returnDate, "yyyy-MM-dd"),
+      travelers: tripResult.breakdown,
+      flights: tripResult.flights,
+      accommodation: tripResult.accommodation,
+      costBreakdown: tripResult.breakdown,
+      totalPerPerson: tripResult.total_per_person,
+      tripTotal: tripResult.trip_total,
+    });
+
+    setIsSharing(false);
+
+    if (result.success && result.tripId) {
+      navigate(`/trip/${result.tripId}`);
+    } else {
+      toast({
+        title: "Failed to create trip",
+        description: result.error || "Please try again",
+        variant: "destructive",
+      });
+    }
+  }, [tripResult, destination, departureDate, returnDate, travelerInfo, navigate]);
 
   const currentStepNumber = stepNumbers[step];
 
