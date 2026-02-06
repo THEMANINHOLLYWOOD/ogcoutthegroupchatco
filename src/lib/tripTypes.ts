@@ -72,6 +72,8 @@ export interface SavedTrip {
   itinerary: Itinerary | null;
   itinerary_status: 'pending' | 'generating' | 'complete' | 'failed';
   share_code: string;
+  link_created_at: string | null;
+  link_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
