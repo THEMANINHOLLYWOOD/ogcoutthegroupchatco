@@ -54,36 +54,31 @@ serve(async (req) => {
 
     const currentCost = currentActivity.estimated_cost || 0;
     
-    const prompt = `You are a travel expert for ${destinationCity}, ${destinationCountry}. Find an alternative activity.
+    const prompt = `Find a ${priceDirection === 'cheaper' ? 'cheaper' : 'pricier'} alternative in ${destinationCity}.
 
-CURRENT ACTIVITY:
-- Title: ${currentActivity.title}
-- Type: ${currentActivity.type}
-- Time: ${currentActivity.time}
-- Current Cost: $${currentCost}/person
-- Date: ${date}
-
-REQUIREMENT: Find a ${priceDirection === 'cheaper' ? 'CHEAPER' : 'MORE PREMIUM/EXPENSIVE'} alternative.
+CURRENT: ${currentActivity.title} ($${currentCost}/person)
+TYPE: ${currentActivity.type}
+TIME: ${currentActivity.time}
 
 ${priceDirection === 'cheaper' 
-  ? `Target price: Under $${currentCost}/person. Could be free or very low cost!`
-  : `Target price: Above $${currentCost}/person. More upscale, exclusive, or premium experience.`}
+  ? `TARGET: Under $${currentCost}. Free is great.`
+  : `TARGET: Above $${currentCost}. Premium experience.`}
 
-Rules:
-1. Return a REAL place/activity that exists in ${destinationCity}
-2. Keep the same time slot (${currentActivity.time})
-3. Keep a similar activity type (${currentActivity.type})
-4. Provide an accurate estimated cost per person
-5. Include a helpful insider tip
+WRITING RULES:
+- Description: One sentence. Specific details. No filler.
+- Tip: One sentence. Actionable only.
 
-Respond with ONLY valid JSON in this exact format:
+BAD: "This is a wonderful place to enjoy delicious food with amazing views."
+GOOD: "Michelin-starred tasting menu with Strip views."
+
+JSON only:
 {
   "time": "${currentActivity.time}",
-  "title": "Activity Name",
-  "description": "Brief 1-2 sentence description",
+  "title": "Place Name",
+  "description": "One specific sentence.",
   "type": "${currentActivity.type}",
   "estimated_cost": 25,
-  "tip": "Insider tip here"
+  "tip": "One actionable tip."
 }`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -95,7 +90,7 @@ Respond with ONLY valid JSON in this exact format:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "You are a travel expert. Always respond with valid JSON only, no markdown or extra text." },
+          { role: "system", content: "You are a travel expert. Write with smart brevity: every word earns its place. One sentence descriptions. Actionable tips only. Respond with valid JSON only." },
           { role: "user", content: prompt }
         ],
       }),
