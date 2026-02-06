@@ -9,6 +9,10 @@ interface Profile {
   phone: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  home_city: string | null;
+  home_state: string | null;
+  home_country: string | null;
+  home_location_set: boolean;
   created_at: string;
   updated_at: string;
 }

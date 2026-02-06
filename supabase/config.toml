@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.search-trip]
 verify_jwt = false
+
+[functions.reverse-geocode]
+verify_jwt = false

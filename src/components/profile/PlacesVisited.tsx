@@ -27,6 +27,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { continents, getAllCountries, getCountryFlag, getContinentForCountry } from '@/data/continents';
+import { LocationPrompt } from './LocationPrompt';
+import { LocationPreview } from './LocationPreview';
+import { useLocationDetection } from '@/hooks/useLocationDetection';
 
 interface City {
   id: string;
@@ -54,6 +57,8 @@ export const PlacesVisited = () => {
   const [addType, setAddType] = useState<'city' | 'state' | 'country'>('city');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [expandedContinents, setExpandedContinents] = useState<string[]>([]);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [isConfirmingLocation, setIsConfirmingLocation] = useState(false);
   
   // Form states
   const [newCity, setNewCity] = useState('');
@@ -62,12 +67,31 @@ export const PlacesVisited = () => {
   const [newStateCountry, setNewStateCountry] = useState('');
   const [newCountry, setNewCountry] = useState('');
 
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const { location, isLoading: isDetecting, error: locationError, detectLocation, reset: resetLocation } = useLocationDetection();
 
   useEffect(() => {
     if (user) fetchAll();
   }, [user]);
+
+  // Check if we should show location prompt
+  useEffect(() => {
+    if (profile && !profile.home_location_set && !isLoading) {
+      setShowLocationPrompt(true);
+    }
+  }, [profile, isLoading]);
+
+  // Show error toast if location detection fails
+  useEffect(() => {
+    if (locationError) {
+      toast({
+        title: 'Location Error',
+        description: locationError,
+        variant: 'destructive',
+      });
+    }
+  }, [locationError, toast]);
 
   const fetchAll = async () => {
     if (!user) return;
@@ -160,6 +184,114 @@ export const PlacesVisited = () => {
     setCountries((prev) => prev.filter((c) => c.id !== id));
   };
 
+  const handleSkipLocation = async () => {
+    if (!user) return;
+    
+    // Mark as set so we don't prompt again
+    await supabase
+      .from('profiles')
+      .update({ home_location_set: true })
+      .eq('id', user.id);
+    
+    setShowLocationPrompt(false);
+    resetLocation();
+    await refreshProfile();
+  };
+
+  const handleConfirmLocation = async () => {
+    if (!user || !location) return;
+
+    setIsConfirmingLocation(true);
+
+    try {
+      // Add city if present and not duplicate
+      if (location.city && location.country) {
+        const { data: existingCity } = await supabase
+          .from('visited_cities')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('city_name', location.city)
+          .eq('country', location.country)
+          .maybeSingle();
+
+        if (!existingCity) {
+          const { data } = await supabase
+            .from('visited_cities')
+            .insert({ user_id: user.id, city_name: location.city, country: location.country })
+            .select()
+            .single();
+          if (data) setCities(prev => [...prev, data]);
+        }
+      }
+
+      // Add state if present and not duplicate
+      if (location.state && location.country) {
+        const { data: existingState } = await supabase
+          .from('visited_states')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('state_name', location.state)
+          .eq('country', location.country)
+          .maybeSingle();
+
+        if (!existingState) {
+          const { data } = await supabase
+            .from('visited_states')
+            .insert({ user_id: user.id, state_name: location.state, country: location.country })
+            .select()
+            .single();
+          if (data) setStates(prev => [...prev, data]);
+        }
+      }
+
+      // Add country if present and not duplicate
+      if (location.country) {
+        const continent = getContinentForCountry(location.country) || 'Other';
+        const { data: existingCountry } = await supabase
+          .from('visited_countries')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('country_name', location.country)
+          .maybeSingle();
+
+        if (!existingCountry) {
+          const { data } = await supabase
+            .from('visited_countries')
+            .insert({ user_id: user.id, country_name: location.country, continent })
+            .select()
+            .single();
+          if (data) setCountries(prev => [...prev, data]);
+        }
+      }
+
+      // Update profile with home location
+      await supabase
+        .from('profiles')
+        .update({
+          home_city: location.city,
+          home_state: location.state,
+          home_country: location.country,
+          home_location_set: true,
+        })
+        .eq('id', user.id);
+
+      setShowLocationPrompt(false);
+      resetLocation();
+      await refreshProfile();
+      
+      toast({ title: 'Home location added!' });
+    } catch (err) {
+      console.error('Error confirming location:', err);
+      toast({
+        title: 'Failed to save location',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsConfirmingLocation(false);
+    }
+  };
+
   const toggleContinent = (name: string) => {
     setExpandedContinents((prev) =>
       prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]
@@ -183,6 +315,28 @@ export const PlacesVisited = () => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      {/* Location Prompt */}
+      <AnimatePresence>
+        {showLocationPrompt && !location && (
+          <LocationPrompt
+            onShareLocation={detectLocation}
+            onSkip={handleSkipLocation}
+            isLoading={isDetecting}
+          />
+        )}
+        {showLocationPrompt && location && (
+          <LocationPreview
+            location={location}
+            onConfirm={handleConfirmLocation}
+            onRetry={() => {
+              resetLocation();
+            }}
+            onSkip={handleSkipLocation}
+            isConfirming={isConfirmingLocation}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-muted/50 rounded-xl p-4 text-center">

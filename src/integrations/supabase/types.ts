@@ -20,6 +20,10 @@ export type Database = {
           created_at: string
           email: string
           full_name: string | null
+          home_city: string | null
+          home_country: string | null
+          home_location_set: boolean
+          home_state: string | null
           id: string
           phone: string | null
           updated_at: string
@@ -29,6 +33,10 @@ export type Database = {
           created_at?: string
           email: string
           full_name?: string | null
+          home_city?: string | null
+          home_country?: string | null
+          home_location_set?: boolean
+          home_state?: string | null
           id: string
           phone?: string | null
           updated_at?: string
@@ -38,6 +46,10 @@ export type Database = {
           created_at?: string
           email?: string
           full_name?: string | null
+          home_city?: string | null
+          home_country?: string | null
+          home_location_set?: boolean
+          home_state?: string | null
           id?: string
           phone?: string | null
           updated_at?: string
