@@ -1,5 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
-import { SavedTrip, SaveTripInput, Itinerary, TravelerCost, FlightOption, AccommodationOption } from "./tripTypes";
+import { SavedTrip, SaveTripInput, Itinerary, TravelerCost, FlightOption, AccommodationOption, Activity } from "./tripTypes";
+
+export interface FindAlternativeParams {
+  tripId: string;
+  dayNumber: number;
+  activityIndex: number;
+  currentActivity: Activity;
+  priceDirection: 'cheaper' | 'pricier';
+  destinationCity: string;
+  destinationCountry: string;
+  date: string;
+}
 
 export async function saveTrip(input: SaveTripInput): Promise<{ success: boolean; tripId?: string; error?: string }> {
   try {
@@ -186,4 +197,46 @@ export async function subscribeToTripUpdates(
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+export async function findAlternativeActivity(
+  params: FindAlternativeParams
+): Promise<{ success: boolean; activity?: Activity; error?: string }> {
+  try {
+    const response = await supabase.functions.invoke("find-alternative-activity", {
+      body: params,
+    });
+
+    if (response.error) {
+      console.error("Error finding alternative:", response.error);
+      return { success: false, error: response.error.message };
+    }
+
+    const data = response.data as { success: boolean; activity?: Activity; error?: string };
+    
+    if (!data.success || !data.activity) {
+      return { success: false, error: data.error || "No alternative found" };
+    }
+
+    return { success: true, activity: data.activity };
+  } catch (err) {
+    console.error("Exception finding alternative:", err);
+    return { success: false, error: "Failed to find alternative" };
+  }
+}
+
+export function calculateItineraryCost(itinerary: Itinerary | null): number {
+  if (!itinerary?.days) return 0;
+  
+  return itinerary.days.reduce((total, day) => {
+    return total + day.activities.reduce((dayTotal, activity) => {
+      return dayTotal + (activity.estimated_cost || 0);
+    }, 0);
+  }, 0);
+}
+
+export function calculateDayCost(activities: Activity[]): number {
+  return activities.reduce((total, activity) => {
+    return total + (activity.estimated_cost || 0);
+  }, 0);
 }

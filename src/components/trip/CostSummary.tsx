@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, User } from "lucide-react";
-import { TravelerCost, AccommodationOption } from "@/lib/tripTypes";
+import { ChevronDown, User, Sparkles } from "lucide-react";
+import { TravelerCost, AccommodationOption, Itinerary } from "@/lib/tripTypes";
+import { calculateItineraryCost, calculateDayCost } from "@/lib/tripService";
 import { cn } from "@/lib/utils";
 
 interface CostSummaryProps {
@@ -9,6 +10,8 @@ interface CostSummaryProps {
   accommodation: AccommodationOption | null;
   totalPerPerson: number;
   tripTotal: number;
+  itinerary?: Itinerary | null;
+  travelerCount?: number;
 }
 
 export function CostSummary({
@@ -16,8 +19,15 @@ export function CostSummary({
   accommodation,
   totalPerPerson,
   tripTotal,
+  itinerary,
+  travelerCount = 1,
 }: CostSummaryProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const activitiesCostPerPerson = calculateItineraryCost(itinerary || null);
+  const totalActivitiesCost = activitiesCostPerPerson * travelerCount;
+  const adjustedTripTotal = tripTotal + totalActivitiesCost;
+  const adjustedPerPerson = totalPerPerson + activitiesCostPerPerson;
 
   return (
     <div className="bg-muted/30 rounded-2xl border border-border overflow-hidden">
@@ -29,12 +39,12 @@ export function CostSummary({
         <div>
           <p className="text-sm text-muted-foreground">Trip Total</p>
           <p className="text-2xl font-bold text-foreground">
-            ${tripTotal.toLocaleString()}
+            ${adjustedTripTotal.toLocaleString()}
           </p>
         </div>
         <div className="flex items-center gap-2 text-muted-foreground">
           <span className="text-sm">
-            ~${totalPerPerson.toLocaleString()}/person
+            ~${adjustedPerPerson.toLocaleString()}/person
           </span>
           <motion.div
             animate={{ rotate: isExpanded ? 180 : 0 }}
@@ -78,6 +88,39 @@ export function CostSummary({
                 </div>
               )}
 
+              {/* Activities Cost */}
+              {itinerary && activitiesCostPerPerson > 0 && (
+                <div className="p-3 rounded-xl bg-background border border-border/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <span className="font-medium text-foreground text-sm">
+                        Activities & Experiences
+                      </span>
+                    </div>
+                    <span className="font-medium text-foreground text-sm">
+                      ${activitiesCostPerPerson}/person
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {itinerary.days.map((day) => {
+                      const dayCost = calculateDayCost(day.activities);
+                      if (dayCost === 0) return null;
+                      const activitiesWithCost = day.activities.filter(a => (a.estimated_cost || 0) > 0).length;
+                      return (
+                        <div 
+                          key={day.day_number}
+                          className="flex items-center justify-between text-xs text-muted-foreground"
+                        >
+                          <span>Day {day.day_number} ({activitiesWithCost} paid)</span>
+                          <span>${dayCost}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Per Person Breakdown */}
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -107,10 +150,11 @@ export function CostSummary({
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-foreground">
-                        ${item.subtotal.toLocaleString()}
+                        ${(item.subtotal + activitiesCostPerPerson).toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Flight ${item.flight_cost} + Stay ${item.accommodation_share}
+                        {activitiesCostPerPerson > 0 && ` + Activities $${activitiesCostPerPerson}`}
                       </p>
                     </div>
                   </motion.div>
