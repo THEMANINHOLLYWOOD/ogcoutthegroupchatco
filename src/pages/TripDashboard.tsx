@@ -1,24 +1,41 @@
-import { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, useCallback } from "react";
+import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, AlertCircle, Share2 } from "lucide-react";
+import { ArrowLeft, AlertCircle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CountdownTimer } from "@/components/trip/CountdownTimer";
 import { TravelerPaymentStatus } from "@/components/trip/TravelerPaymentStatus";
 import { ConfirmationBanner } from "@/components/trip/ConfirmationBanner";
 import { ShareButton } from "@/components/trip/ShareButton";
-import { fetchTrip, subscribeToTripUpdates } from "@/lib/tripService";
-import { SavedTrip } from "@/lib/tripTypes";
+import { DashboardItineraryView } from "@/components/trip/DashboardItineraryView";
+import { AddActivityModal } from "@/components/trip/AddActivityModal";
+import { fetchTrip, subscribeToTripUpdates, addActivityToItinerary, removeActivityFromItinerary } from "@/lib/tripService";
+import { fetchReactions, subscribeToReactions, addReaction, removeReaction, ReactionsMap, getReactionKey } from "@/lib/reactionService";
+import { SavedTrip, Activity } from "@/lib/tripTypes";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
 
 export default function TripDashboard() {
   const { tripId } = useParams<{ tripId: string }>();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [trip, setTrip] = useState<SavedTrip | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
+  const [reactions, setReactions] = useState<ReactionsMap>(new Map());
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addingToDay, setAddingToDay] = useState<number>(1);
+
+  const isOrganizer = trip?.organizer_id === user?.id;
+  const allPaid = trip?.travelers && trip.travelers.length > 0 && 
+    trip.travelers.every(t => paidTravelers.has(t.traveler_name));
+
+  // Fetch reactions
+  const loadReactions = useCallback(async () => {
+    if (!tripId) return;
+    const reactionsData = await fetchReactions(tripId, user?.id);
+    setReactions(reactionsData);
+  }, [tripId, user?.id]);
 
   useEffect(() => {
     const loadTrip = async () => {
@@ -40,20 +57,26 @@ export default function TripDashboard() {
     };
 
     loadTrip();
-  }, [tripId, user?.id]);
+    loadReactions();
+  }, [tripId, user?.id, loadReactions]);
 
   // Subscribe to realtime updates
   useEffect(() => {
     if (!tripId) return;
 
-    const unsubscribe = subscribeToTripUpdates(tripId, (updatedTrip) => {
+    const unsubscribeTrip = subscribeToTripUpdates(tripId, (updatedTrip) => {
       setTrip(updatedTrip);
     });
 
+    const unsubscribeReactions = subscribeToReactions(tripId, () => {
+      loadReactions();
+    });
+
     return () => {
-      unsubscribe.then((unsub) => unsub());
+      unsubscribeTrip.then((unsub) => unsub());
+      unsubscribeReactions();
     };
-  }, [tripId]);
+  }, [tripId, loadReactions]);
 
   const handlePay = async (travelerName: string): Promise<void> => {
     // Simulate payment processing delay
@@ -66,8 +89,74 @@ export default function TripDashboard() {
     });
   };
 
-  const allPaid = trip?.travelers && trip.travelers.length > 0 && 
-    trip.travelers.every(t => paidTravelers.has(t.traveler_name));
+  const handleReact = async (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => {
+    if (!tripId || !user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to react to activities",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const key = getReactionKey(dayNumber, activityIndex);
+    const currentReaction = reactions.get(key)?.user_reaction;
+
+    if (currentReaction === reaction) {
+      // Remove reaction
+      const result = await removeReaction(tripId, dayNumber, activityIndex);
+      if (!result.success) {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    } else {
+      // Add/update reaction
+      const result = await addReaction(tripId, dayNumber, activityIndex, reaction);
+      if (!result.success) {
+        toast({ title: "Error", description: result.error, variant: "destructive" });
+      }
+    }
+    
+    // Refresh reactions
+    loadReactions();
+  };
+
+  const handleRemoveActivity = async (dayNumber: number, activityIndex: number) => {
+    if (!tripId) return;
+
+    const result = await removeActivityFromItinerary(tripId, dayNumber, activityIndex);
+    if (result.success) {
+      toast({ title: "Activity removed" });
+      // Refresh trip data
+      const tripResult = await fetchTrip(tripId);
+      if (tripResult.success && tripResult.trip) {
+        setTrip(tripResult.trip);
+      }
+    } else {
+      toast({ title: "Error", description: result.error, variant: "destructive" });
+    }
+  };
+
+  const handleAddActivity = async (activity: Activity) => {
+    if (!tripId) return;
+
+    const result = await addActivityToItinerary(tripId, addingToDay, activity);
+    if (result.success) {
+      toast({ title: "Activity added" });
+      // Refresh trip data
+      const tripResult = await fetchTrip(tripId);
+      if (tripResult.success && tripResult.trip) {
+        setTrip(tripResult.trip);
+      }
+    } else {
+      toast({ title: "Error", description: result.error, variant: "destructive" });
+      throw new Error(result.error);
+    }
+  };
+
+  const openAddModal = (dayNumber: number) => {
+    setAddingToDay(dayNumber);
+    setShowAddModal(true);
+  };
 
   if (loading) {
     return (
@@ -107,7 +196,7 @@ export default function TripDashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between max-w-3xl">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between max-w-lg">
           <Link to={`/trip/${tripId}`}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-1" />
@@ -119,8 +208,8 @@ export default function TripDashboard() {
         </div>
       </div>
 
-      <main className="container mx-auto px-4 py-8 max-w-3xl space-y-8">
-        {/* Trip Info */}
+      <main className="container mx-auto px-4 py-6 max-w-lg space-y-6">
+        {/* Trip Info - Compact */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -158,7 +247,7 @@ export default function TripDashboard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-card border border-border rounded-2xl p-6"
+          className="bg-card border border-border rounded-2xl p-5"
         >
           <TravelerPaymentStatus
             travelers={trip.travelers}
@@ -168,14 +257,41 @@ export default function TripDashboard() {
           />
         </motion.div>
 
+        {/* Itinerary Section */}
+        {trip.itinerary && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-card border border-border rounded-2xl p-5"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <MapPin className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-semibold text-foreground">Itinerary</h3>
+            </div>
+            
+            <DashboardItineraryView
+              itinerary={trip.itinerary}
+              tripId={trip.id}
+              reactions={reactions}
+              isOrganizer={isOrganizer}
+              allPaid={allPaid}
+              canReact={!!user}
+              onReact={handleReact}
+              onRemoveActivity={handleRemoveActivity}
+              onAddActivity={openAddModal}
+            />
+          </motion.section>
+        )}
+
         {/* Cost Summary */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-card border border-border rounded-2xl p-6"
+          transition={{ delay: 0.4 }}
+          className="bg-card border border-border rounded-2xl p-5"
         >
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold text-foreground">Trip Total</h3>
             <span className="text-2xl font-bold text-foreground">
               ${trip.trip_total.toLocaleString()}
@@ -191,16 +307,20 @@ export default function TripDashboard() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-card border border-border rounded-2xl p-6"
+          transition={{ delay: 0.5 }}
+          className="bg-card border border-border rounded-2xl p-5"
         >
-          <div className="flex items-center gap-2 mb-4">
-            <Share2 className="w-5 h-5 text-muted-foreground" />
-            <h3 className="text-lg font-semibold text-foreground">Share with Friends</h3>
-          </div>
           <ShareButton tripId={trip.id} shareCode={trip.share_code} isClaimed={true} />
         </motion.div>
       </main>
+
+      {/* Add Activity Modal */}
+      <AddActivityModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddActivity}
+        dayNumber={addingToDay}
+      />
     </div>
   );
 }

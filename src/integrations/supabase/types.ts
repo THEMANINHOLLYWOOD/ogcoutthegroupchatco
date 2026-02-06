@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_reactions: {
+        Row: {
+          activity_index: number
+          created_at: string | null
+          day_number: number
+          id: string
+          reaction: string
+          trip_id: string
+          user_id: string
+        }
+        Insert: {
+          activity_index: number
+          created_at?: string | null
+          day_number: number
+          id?: string
+          reaction: string
+          trip_id: string
+          user_id: string
+        }
+        Update: {
+          activity_index?: number
+          created_at?: string | null
+          day_number?: number
+          id?: string
+          reaction?: string
+          trip_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_reactions_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
