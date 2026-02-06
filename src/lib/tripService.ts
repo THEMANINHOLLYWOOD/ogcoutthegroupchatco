@@ -491,3 +491,33 @@ export async function claimTrip(tripId: string): Promise<{ success: boolean; err
     return { success: false, error: "Failed to claim trip" };
   }
 }
+
+export async function generatePersonalShareImage(
+  tripId: string,
+  destinationCity: string,
+  destinationCountry: string
+): Promise<{ success: boolean; imageUrl?: string; cached?: boolean; error?: string }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const response = await supabase.functions.invoke("generate-share-image", {
+      body: {
+        tripId,
+        userId: user?.id,
+        destinationCity,
+        destinationCountry,
+      },
+    });
+
+    if (response.error) {
+      console.error("Error generating personal share image:", response.error);
+      return { success: false, error: response.error.message };
+    }
+
+    const data = response.data as { success: boolean; imageUrl?: string; cached?: boolean; error?: string };
+    return data;
+  } catch (err) {
+    console.error("Exception generating personal share image:", err);
+    return { success: false, error: "Failed to generate image" };
+  }
+}

@@ -17,28 +17,85 @@ serve(async (req) => {
   }
 
   try {
-    const { tripId, destinationCity, destinationCountry, travelers, travelerCount } = await req.json();
+    const { tripId, userId, destinationCity, destinationCountry, travelers, travelerCount } = await req.json();
 
-    // Support both old format (travelerCount) and new format (travelers array)
-    const travelerList: TravelerData[] = travelers || [];
-    const count = travelerList.length || travelerCount || 1;
-
-    console.log(`Generating share image for trip ${tripId}: ${count} travelers to ${destinationCity}, ${destinationCountry}`);
+    console.log(`Generating share image for trip ${tripId}, user: ${userId || 'anonymous'}`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Collect avatar URLs for multi-modal generation
-    const avatarUrls = travelerList
-      .map(t => t.avatar_url)
-      .filter((url): url is string => !!url);
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log(`Found ${avatarUrls.length} traveler photos for reference`);
+    // Determine storage path - per-user if userId provided
+    const fileName = userId 
+      ? `share-images/${tripId}/${userId}.png`
+      : `share-images/${tripId}.png`;
 
-    // Build the prompt
-    const basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
+    // Check for existing cached image (only for per-user requests)
+    if (userId) {
+      const { data: existingFiles } = await supabase.storage
+        .from("travel-media")
+        .list(`share-images/${tripId}`, {
+          search: `${userId}.png`
+        });
+
+      if (existingFiles && existingFiles.length > 0) {
+        console.log("Found cached image for user, returning cached URL");
+        const { data: urlData } = supabase.storage
+          .from("travel-media")
+          .getPublicUrl(fileName);
+        
+        return new Response(
+          JSON.stringify({ success: true, imageUrl: urlData.publicUrl, cached: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Get avatar URL - either from userId lookup or legacy travelers array
+    let avatarUrl: string | null = null;
+
+    if (userId) {
+      // Fetch the requesting user's profile avatar
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("avatar_url, full_name")
+        .eq("id", userId)
+        .single();
+
+      if (!profileError && profile?.avatar_url) {
+        avatarUrl = profile.avatar_url;
+        console.log(`Using profile avatar for user ${userId}`);
+      }
+    } else if (travelers) {
+      // Legacy: use first traveler with avatar from travelers array
+      const travelerList: TravelerData[] = travelers || [];
+      const avatarUrls = travelerList
+        .map(t => t.avatar_url)
+        .filter((url): url is string => !!url);
+      
+      if (avatarUrls.length > 0) {
+        avatarUrl = avatarUrls[0];
+        console.log("Using legacy traveler avatar");
+      }
+    }
+
+    const count = travelers?.length || travelerCount || 1;
+    console.log(`Destination: ${destinationCity}, ${destinationCountry}, Avatar: ${avatarUrl ? 'yes' : 'no'}`);
+
+    // Build the prompt - personalized if we have an avatar
+    const basePrompt = avatarUrl
+      ? `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
+Show a happy traveler enjoying a famous landmark, golden hour lighting, vibrant colors.
+Use the reference photo to create a realistic depiction of this person at the destination.
+Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
+The person should look excited and joyful, capturing a perfect travel memory.`
+      : `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
 Show ${count} diverse friends enjoying a famous landmark, golden hour lighting, vibrant colors.
 Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
 The friends should look happy and excited, capturing a perfect travel memory together.`;
@@ -48,21 +105,15 @@ The friends should look happy and excited, capturing a perfect travel memory tog
       { type: "text", text: basePrompt }
     ];
 
-    // Add reference photos if available
-    if (avatarUrls.length > 0) {
-      contentArray[0].text = `${basePrompt}
-
-IMPORTANT: Use the reference photos below as inspiration for the faces/appearance of the people in the image. Create realistic depictions of these travelers enjoying ${destinationCity} together.`;
-
-      for (const url of avatarUrls.slice(0, 4)) { // Limit to 4 reference photos
-        contentArray.push({
-          type: "image_url",
-          image_url: { url }
-        });
-      }
+    // Add reference photo if available
+    if (avatarUrl) {
+      contentArray.push({
+        type: "image_url",
+        image_url: { url: avatarUrl }
+      });
     }
 
-    console.log("Calling Nano Banana with multi-modal content");
+    console.log("Calling Nano Banana for image generation");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -108,14 +159,6 @@ IMPORTANT: Use the reference photos below as inspiration for the faces/appearanc
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Initialize Supabase client with service role for storage access
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Upload to storage
-    const fileName = `share-images/${tripId}.png`;
-    
     console.log("Uploading image to storage:", fileName);
 
     const { error: uploadError } = await supabase.storage
@@ -138,15 +181,16 @@ IMPORTANT: Use the reference photos below as inspiration for the faces/appearanc
     const imageUrl = urlData.publicUrl;
     console.log("Image uploaded successfully:", imageUrl);
 
-    // Update trip with share_image_url
-    const { error: updateError } = await supabase
-      .from("trips")
-      .update({ share_image_url: imageUrl })
-      .eq("id", tripId);
+    // Only update trip share_image_url for legacy (non-user) calls
+    if (!userId) {
+      const { error: updateError } = await supabase
+        .from("trips")
+        .update({ share_image_url: imageUrl })
+        .eq("id", tripId);
 
-    if (updateError) {
-      console.error("Error updating trip with share_image_url:", updateError);
-      // Don't throw - image is still uploaded successfully
+      if (updateError) {
+        console.error("Error updating trip with share_image_url:", updateError);
+      }
     }
 
     return new Response(

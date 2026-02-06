@@ -1,22 +1,33 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link2, Check, Share, Copy, ArrowRight } from "lucide-react";
+import { Check, Share, Copy, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { generatePersonalShareImage } from "@/lib/tripService";
 
 interface ShareButtonProps {
   tripId: string;
   shareCode: string;
   isClaimed?: boolean;
+  destinationCity?: string;
+  destinationCountry?: string;
 }
 
-export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButtonProps) {
+export function ShareButton({ 
+  tripId, 
+  shareCode, 
+  isClaimed = false,
+  destinationCity,
+  destinationCountry,
+}: ShareButtonProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
 
   const shareUrl = `${window.location.origin}/trip/${tripId}`;
 
@@ -54,11 +65,37 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
   };
 
   const handleNativeShare = async () => {
+    // Only generate image if we have destination info
+    if (destinationCity && destinationCountry) {
+      setIsGenerating(true);
+      
+      try {
+        const result = await generatePersonalShareImage(
+          tripId,
+          destinationCity,
+          destinationCountry
+        );
+
+        if (result.success && result.imageUrl) {
+          setGeneratedImageUrl(result.imageUrl);
+          console.log("Share image ready:", result.cached ? "cached" : "generated");
+        }
+      } catch (err) {
+        console.error("Error generating share image:", err);
+        // Continue with share even if image generation fails
+      }
+      
+      setIsGenerating(false);
+    }
+
+    // Proceed with share
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Check out our trip!",
-          text: `Join us on this amazing adventure! Use code: ${shareCode}`,
+          title: destinationCity ? `Trip to ${destinationCity}!` : "Check out our trip!",
+          text: destinationCity 
+            ? `Join us on this amazing adventure to ${destinationCity}! Use code: ${shareCode}`
+            : `Join us on this amazing adventure! Use code: ${shareCode}`,
           url: shareUrl,
         });
       } catch (err) {
@@ -107,9 +144,27 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
     );
   }
 
-  // Already claimed - show share options (simplified)
+  // Already claimed - show share options
   return (
     <div className="space-y-3">
+      {/* Generated Image Preview */}
+      <AnimatePresence>
+        {generatedImageUrl && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="rounded-xl overflow-hidden"
+          >
+            <img 
+              src={generatedImageUrl} 
+              alt="Your personalized share preview"
+              className="w-full aspect-video object-cover"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Share Code Display */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -155,10 +210,20 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
       {/* Single Share Button */}
       <Button
         onClick={handleNativeShare}
+        disabled={isGenerating}
         className="w-full h-11 sm:h-12 rounded-xl"
       >
-        <Share className="w-4 h-4 mr-2" />
-        Share with Friends
+        {isGenerating ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Creating your share image...
+          </>
+        ) : (
+          <>
+            <Share className="w-4 h-4 mr-2" />
+            Share with Friends
+          </>
+        )}
       </Button>
     </div>
   );
