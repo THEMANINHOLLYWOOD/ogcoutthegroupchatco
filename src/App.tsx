@@ -13,6 +13,7 @@ import ClaimTrip from "./pages/ClaimTrip";
 import JoinTrip from "./pages/JoinTrip";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
+import Trips from "./pages/Trips";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trips"
+              element={
+                <ProtectedRoute>
+                  <Trips />
                 </ProtectedRoute>
               }
             />
