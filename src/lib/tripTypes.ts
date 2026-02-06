@@ -71,6 +71,7 @@ export interface SavedTrip {
   trip_total: number;
   itinerary: Itinerary | null;
   itinerary_status: 'pending' | 'generating' | 'complete' | 'failed';
+  share_code: string;
   created_at: string;
   updated_at: string;
 }

@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import CreateTrip from "./pages/CreateTrip";
 import TripView from "./pages/TripView";
+import JoinTrip from "./pages/JoinTrip";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/create-trip" element={<CreateTrip />} />
             <Route path="/trip/:tripId" element={<TripView />} />
+            <Route path="/join" element={<JoinTrip />} />
             <Route path="/auth" element={<Auth />} />
             <Route
               path="/profile"

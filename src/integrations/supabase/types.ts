@@ -110,6 +110,7 @@ export type Database = {
           organizer_id: string | null
           organizer_name: string
           return_date: string
+          share_code: string
           total_per_person: number
           travelers: Json
           trip_total: number
@@ -130,6 +131,7 @@ export type Database = {
           organizer_id?: string | null
           organizer_name: string
           return_date: string
+          share_code?: string
           total_per_person?: number
           travelers?: Json
           trip_total?: number
@@ -150,6 +152,7 @@ export type Database = {
           organizer_id?: string | null
           organizer_name?: string
           return_date?: string
+          share_code?: string
           total_per_person?: number
           travelers?: Json
           trip_total?: number
@@ -301,7 +304,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_share_code: { Args: never; Returns: string }
     }
     Enums: {
       media_type: "photo" | "video"

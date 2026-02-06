@@ -163,7 +163,7 @@ export default function TripView() {
             <p className="text-sm text-muted-foreground text-center mb-3">
               Share this trip with your travel group
             </p>
-            <ShareButton tripId={trip.id} />
+            <ShareButton tripId={trip.id} shareCode={trip.share_code} />
           </div>
         </section>
       </main>
