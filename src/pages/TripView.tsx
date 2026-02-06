@@ -16,6 +16,59 @@ export default function TripView() {
   const [trip, setTrip] = useState<SavedTrip | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+
+  const toggleActivity = useCallback((dayNumber: number, activityIndex: number) => {
+    const key = `${dayNumber}-${activityIndex}`;
+    setSelectedActivities(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const addAllActivities = useCallback(() => {
+    if (!trip?.itinerary) return;
+    const allKeys = new Set<string>();
+    trip.itinerary.days.forEach(day => {
+      day.activities.forEach((activity, index) => {
+        if ((activity.estimated_cost || 0) > 0) {
+          allKeys.add(`${day.day_number}-${index}`);
+        }
+      });
+    });
+    setSelectedActivities(allKeys);
+  }, [trip?.itinerary]);
+
+  const addDayActivities = useCallback((dayNumber: number) => {
+    const day = trip?.itinerary?.days.find(d => d.day_number === dayNumber);
+    if (!day) return;
+    setSelectedActivities(prev => {
+      const next = new Set(prev);
+      day.activities.forEach((activity, index) => {
+        if ((activity.estimated_cost || 0) > 0) {
+          next.add(`${dayNumber}-${index}`);
+        }
+      });
+      return next;
+    });
+  }, [trip?.itinerary]);
+
+  const removeDayActivities = useCallback((dayNumber: number) => {
+    const day = trip?.itinerary?.days.find(d => d.day_number === dayNumber);
+    if (!day) return;
+    setSelectedActivities(prev => {
+      const next = new Set(prev);
+      day.activities.forEach((_, index) => {
+        next.delete(`${dayNumber}-${index}`);
+      });
+      return next;
+    });
+  }, [trip?.itinerary]);
 
   const loadTrip = useCallback(async () => {
     if (!tripId) return;
@@ -164,6 +217,11 @@ export default function TripView() {
             tripTotal={trip.trip_total}
             itinerary={trip.itinerary}
             travelerCount={trip.travelers.length}
+            selectedActivities={selectedActivities}
+            onToggleActivity={toggleActivity}
+            onAddAllActivities={addAllActivities}
+            onAddDayActivities={addDayActivities}
+            onRemoveDayActivities={removeDayActivities}
           />
         </section>
 

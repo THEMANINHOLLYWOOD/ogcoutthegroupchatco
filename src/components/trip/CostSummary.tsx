@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, User, Sparkles } from "lucide-react";
+import { ChevronDown, User, Sparkles, Plus, Check } from "lucide-react";
 import { TravelerCost, AccommodationOption, Itinerary } from "@/lib/tripTypes";
-import { calculateItineraryCost, calculateDayCost } from "@/lib/tripService";
+import { calculateSelectedActivitiesCost, getTotalAvailableActivitiesCost } from "@/lib/tripService";
+import { DayCostRow } from "./DayCostRow";
 import { cn } from "@/lib/utils";
 
 interface CostSummaryProps {
@@ -12,6 +13,11 @@ interface CostSummaryProps {
   tripTotal: number;
   itinerary?: Itinerary | null;
   travelerCount?: number;
+  selectedActivities: Set<string>;
+  onToggleActivity: (dayNumber: number, activityIndex: number) => void;
+  onAddAllActivities: () => void;
+  onAddDayActivities: (dayNumber: number) => void;
+  onRemoveDayActivities: (dayNumber: number) => void;
 }
 
 export function CostSummary({
@@ -21,13 +27,29 @@ export function CostSummary({
   tripTotal,
   itinerary,
   travelerCount = 1,
+  selectedActivities,
+  onToggleActivity,
+  onAddAllActivities,
+  onAddDayActivities,
+  onRemoveDayActivities,
 }: CostSummaryProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const activitiesCostPerPerson = calculateItineraryCost(itinerary || null);
-  const totalActivitiesCost = activitiesCostPerPerson * travelerCount;
-  const adjustedTripTotal = tripTotal + totalActivitiesCost;
-  const adjustedPerPerson = totalPerPerson + activitiesCostPerPerson;
+  const selectedActivitiesCost = calculateSelectedActivitiesCost(itinerary || null, selectedActivities);
+  const totalAvailableCost = getTotalAvailableActivitiesCost(itinerary || null);
+  const totalSelectedCost = selectedActivitiesCost * travelerCount;
+  const adjustedTripTotal = tripTotal + totalSelectedCost;
+  const adjustedPerPerson = totalPerPerson + selectedActivitiesCost;
+
+  const hasPaidActivities = totalAvailableCost > 0;
+  
+  // Check if all paid activities are selected
+  const allActivitiesSelected = itinerary?.days.every(day => 
+    day.activities.every((activity, index) => {
+      if ((activity.estimated_cost || 0) === 0) return true;
+      return selectedActivities.has(`${day.day_number}-${index}`);
+    })
+  ) ?? false;
 
   return (
     <div className="bg-muted/30 rounded-2xl border border-border overflow-hidden">
@@ -37,13 +59,29 @@ export function CostSummary({
         className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
       >
         <div>
-          <p className="text-sm text-muted-foreground">Trip Total</p>
-          <p className="text-2xl font-bold text-foreground">
-            ${adjustedTripTotal.toLocaleString()}
-          </p>
+          <p className="text-sm text-muted-foreground">Base Trip Cost</p>
+          <div className="flex items-baseline gap-2">
+            <motion.p 
+              key={adjustedTripTotal}
+              initial={{ opacity: 0.5 }}
+              animate={{ opacity: 1 }}
+              className="text-2xl font-bold text-foreground tabular-nums"
+            >
+              ${adjustedTripTotal.toLocaleString()}
+            </motion.p>
+            {selectedActivitiesCost > 0 && (
+              <motion.span
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-sm text-primary font-medium"
+              >
+                +${totalSelectedCost} activities
+              </motion.span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-muted-foreground">
-          <span className="text-sm">
+          <span className="text-sm tabular-nums">
             ~${adjustedPerPerson.toLocaleString()}/person
           </span>
           <motion.div
@@ -65,7 +103,7 @@ export function CostSummary({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 space-y-3">
+            <div className="px-4 pb-4 space-y-4">
               {/* Accommodation */}
               {accommodation && (
                 <div className="p-3 rounded-xl bg-background border border-border/50">
@@ -88,35 +126,56 @@ export function CostSummary({
                 </div>
               )}
 
-              {/* Activities Cost */}
-              {itinerary && activitiesCostPerPerson > 0 && (
+              {/* Activities Section */}
+              {hasPaidActivities && itinerary && (
                 <div className="p-3 rounded-xl bg-background border border-border/50">
-                  <div className="flex items-center justify-between mb-2">
+                  {/* Activities Header with Add All */}
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-primary" />
                       <span className="font-medium text-foreground text-sm">
                         Activities & Experiences
                       </span>
                     </div>
-                    <span className="font-medium text-foreground text-sm">
-                      ${activitiesCostPerPerson}/person
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        ${totalAvailableCost}/person
+                      </span>
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddAllActivities();
+                        }}
+                        className={cn(
+                          "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
+                          allActivitiesSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-primary/10 text-primary hover:bg-primary/20"
+                        )}
+                      >
+                        {allActivitiesSelected ? (
+                          <Check className="w-3.5 h-3.5" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5" />
+                        )}
+                      </motion.button>
+                    </div>
                   </div>
+
+                  {/* Day-by-day breakdown */}
                   <div className="space-y-1">
-                    {itinerary.days.map((day) => {
-                      const dayCost = calculateDayCost(day.activities);
-                      if (dayCost === 0) return null;
-                      const activitiesWithCost = day.activities.filter(a => (a.estimated_cost || 0) > 0).length;
-                      return (
-                        <div 
-                          key={day.day_number}
-                          className="flex items-center justify-between text-xs text-muted-foreground"
-                        >
-                          <span>Day {day.day_number} ({activitiesWithCost} paid)</span>
-                          <span>${dayCost}</span>
-                        </div>
-                      );
-                    })}
+                    {itinerary.days.map((day) => (
+                      <DayCostRow
+                        key={day.day_number}
+                        dayNumber={day.day_number}
+                        activities={day.activities}
+                        selectedActivities={selectedActivities}
+                        onToggleActivity={onToggleActivity}
+                        onAddAllDay={onAddDayActivities}
+                        onRemoveAllDay={onRemoveDayActivities}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -149,12 +208,17 @@ export function CostSummary({
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-foreground">
-                        ${(item.subtotal + activitiesCostPerPerson).toLocaleString()}
-                      </p>
+                      <motion.p 
+                        key={item.subtotal + selectedActivitiesCost}
+                        initial={{ opacity: 0.5 }}
+                        animate={{ opacity: 1 }}
+                        className="font-semibold text-foreground tabular-nums"
+                      >
+                        ${(item.subtotal + selectedActivitiesCost).toLocaleString()}
+                      </motion.p>
                       <p className="text-xs text-muted-foreground">
                         Flight ${item.flight_cost} + Stay ${item.accommodation_share}
-                        {activitiesCostPerPerson > 0 && ` + Activities $${activitiesCostPerPerson}`}
+                        {selectedActivitiesCost > 0 && ` + Activities $${selectedActivitiesCost}`}
                       </p>
                     </div>
                   </motion.div>

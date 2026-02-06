@@ -240,3 +240,32 @@ export function calculateDayCost(activities: Activity[]): number {
     return total + (activity.estimated_cost || 0);
   }, 0);
 }
+
+export function calculateSelectedActivitiesCost(
+  itinerary: Itinerary | null,
+  selectedActivities: Set<string>
+): number {
+  if (!itinerary?.days) return 0;
+  
+  let total = 0;
+  itinerary.days.forEach(day => {
+    day.activities.forEach((activity, index) => {
+      const key = `${day.day_number}-${index}`;
+      if (selectedActivities.has(key)) {
+        total += activity.estimated_cost || 0;
+      }
+    });
+  });
+  
+  return total;
+}
+
+export function getTotalAvailableActivitiesCost(itinerary: Itinerary | null): number {
+  if (!itinerary?.days) return 0;
+  
+  return itinerary.days.reduce((total, day) => {
+    return total + day.activities.reduce((dayTotal, activity) => {
+      return dayTotal + (activity.estimated_cost || 0);
+    }, 0);
+  }, 0);
+}
