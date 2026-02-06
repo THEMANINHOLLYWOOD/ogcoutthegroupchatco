@@ -56,6 +56,77 @@ export type Database = {
         }
         Relationships: []
       }
+      travel_companions: {
+        Row: {
+          created_at: string
+          date_of_birth: string | null
+          document_number: string | null
+          document_type: string | null
+          expiration_date: string | null
+          first_name: string
+          full_legal_name: string
+          gender: string | null
+          home_airport_city: string | null
+          home_airport_iata: string | null
+          home_airport_name: string | null
+          id: string
+          last_name: string
+          middle_name: string | null
+          nationality: string | null
+          nickname: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth?: string | null
+          document_number?: string | null
+          document_type?: string | null
+          expiration_date?: string | null
+          first_name: string
+          full_legal_name: string
+          gender?: string | null
+          home_airport_city?: string | null
+          home_airport_iata?: string | null
+          home_airport_name?: string | null
+          id?: string
+          last_name: string
+          middle_name?: string | null
+          nationality?: string | null
+          nickname: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string | null
+          document_number?: string | null
+          document_type?: string | null
+          expiration_date?: string | null
+          first_name?: string
+          full_legal_name?: string
+          gender?: string | null
+          home_airport_city?: string | null
+          home_airport_iata?: string | null
+          home_airport_name?: string | null
+          id?: string
+          last_name?: string
+          middle_name?: string | null
+          nationality?: string | null
+          nickname?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "travel_companions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       travel_media: {
         Row: {
           caption: string | null
@@ -89,6 +160,74 @@ export type Database = {
             foreignKeyName: "travel_media_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traveler_documents: {
+        Row: {
+          created_at: string
+          date_of_birth: string
+          document_number: string
+          document_type: string
+          expiration_date: string
+          first_name: string
+          full_legal_name: string
+          gender: string | null
+          id: string
+          issue_date: string | null
+          issuing_country: string | null
+          last_name: string
+          middle_name: string | null
+          nationality: string | null
+          place_of_birth: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth: string
+          document_number: string
+          document_type?: string
+          expiration_date: string
+          first_name: string
+          full_legal_name: string
+          gender?: string | null
+          id?: string
+          issue_date?: string | null
+          issuing_country?: string | null
+          last_name: string
+          middle_name?: string | null
+          nationality?: string | null
+          place_of_birth?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string
+          document_number?: string
+          document_type?: string
+          expiration_date?: string
+          first_name?: string
+          full_legal_name?: string
+          gender?: string | null
+          id?: string
+          issue_date?: string | null
+          issuing_country?: string | null
+          last_name?: string
+          middle_name?: string | null
+          nationality?: string | null
+          place_of_birth?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traveler_documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
