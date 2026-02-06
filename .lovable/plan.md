@@ -1,244 +1,195 @@
 
 
-# Plan: Trip Details Flow - Destination, Dates, Travelers & AI Flight Search
+# Plan: User Authentication & Profile System
 
 ## Overview
 
-After the user confirms their traveler profile, they'll proceed through a multi-step flow to:
-1. Select departure and destination airports (with auto-suggest)
-2. Pick travel dates
-3. Add fellow travelers (with option for different departure airports)
-4. Have Gemini AI search for the best flights and accommodations
-5. View an itemized receipt showing per-person costs
+This plan implements a comprehensive user authentication system with Google OAuth, user profiles, photo galleries, and travel history tracking. The design will be minimalistic with ultra-smooth Framer Motion animations, matching the existing iMessage-inspired aesthetic.
 
 ---
 
 ## User Flow
 
 ```text
-[ID Scan Complete] 
+[Landing Page / Create Trip]
      |
-     | Click "Confirm & Continue"
+     | Click "Sign In" 
      v
-[Step 2: Trip Details]
+[/auth] - Sign In Page
      |
-     | Where are you going? (destination airport)
-     | Where are you leaving from? (auto-detected, editable)
-     | When? (date range picker)
+     | Email/Password OR Google OAuth
      v
-[Step 3: Add Travelers]
+[Authenticated User]
      |
-     | Who's coming with you?
-     | - Add traveler (name + same airport or different)
-     | - Repeat for each person
      v
-[AI Search Processing]
+[/profile] - User Profile Page
      |
-     | Gemini searches for flights & accommodations
-     | Animated "Finding the best deals..." state
-     v
-[Trip Summary / Receipt]
-     |
-     | Itemized breakdown per person
-     | Total trip cost
-     | "Confirm & Share" or "Edit Details"
+     +-- Profile Picture (editable)
+     +-- Personal Info (phone, email)
+     +-- Photo Gallery (photos of user)
+     +-- Travel Gallery (photos + videos)
+     +-- Travel History:
+         +-- Cities visited
+         +-- States visited
+         +-- Countries by Continent
 ```
+
+---
+
+## Technical Architecture
+
+### Database Tables
+
+**profiles** - Core user profile data
+- id (uuid, FK to auth.users)
+- email (text)
+- phone (text, nullable)
+- full_name (text, nullable)
+- avatar_url (text, nullable)
+- created_at, updated_at
+
+**user_photos** - Personal photo gallery
+- id (uuid)
+- user_id (uuid, FK to profiles)
+- url (text)
+- caption (text, nullable)
+- created_at
+
+**travel_media** - Travel photos & videos
+- id (uuid)
+- user_id (uuid, FK to profiles)
+- url (text)
+- media_type (enum: 'photo', 'video')
+- caption (text, nullable)
+- location (text, nullable)
+- created_at
+
+**visited_cities** - Cities traveled to
+- id (uuid)
+- user_id (uuid, FK to profiles)
+- city_name (text)
+- country (text)
+- visited_date (date, nullable)
+- created_at
+
+**visited_states** - States/provinces traveled to
+- id (uuid)
+- user_id (uuid, FK to profiles)
+- state_name (text)
+- country (text)
+- created_at
+
+**visited_countries** - Countries with continent grouping
+- id (uuid)
+- user_id (uuid, FK to profiles)
+- country_name (text)
+- continent (text)
+- created_at
+
+### Storage Buckets
+
+**avatars** - User profile pictures (public)
+**user-photos** - Personal gallery (authenticated)
+**travel-media** - Travel photos/videos (authenticated)
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Expand the Step Flow
+### Step 1: Database Setup
 
-**File: `src/pages/CreateTrip.tsx`**
+Create migration with all tables, RLS policies, and storage buckets:
+- profiles table with trigger to auto-create on signup
+- All visited location tables with proper foreign keys
+- Media tables for galleries
+- RLS policies requiring authenticated users
+- Storage buckets with upload/read policies
 
-Update the step type to include new steps:
-```typescript
-type Step = "upload" | "processing" | "review" | "trip-details" | "travelers" | "searching" | "summary";
-```
+### Step 2: Configure Google OAuth
 
-After `handleConfirm` is called, transition to `"trip-details"` step instead of just showing a toast.
+Use the `supabase--configure-social-auth` tool to enable managed Google OAuth via Lovable Cloud. This generates the lovable auth module automatically.
 
-### Step 2: Create Trip Details Component
+### Step 3: Create Authentication Pages
 
-**File: `src/components/trip-wizard/TripDetailsStep.tsx`**
+**File: `src/pages/Auth.tsx`**
 
-A clean, minimalistic form with:
-- **Destination Input**: Autocomplete airport search using a local airport database (JSON-based, no external API needed)
-- **Origin Input**: Same autocomplete, pre-filled based on user's geolocation (browser Geolocation API)
-- **Date Range Picker**: Departure and return dates using existing Calendar component
-- **Continue Button**
+A beautiful, minimalistic auth page with:
+- Framer Motion fade-in animations
+- Email/password form with validation (using zod)
+- "Continue with Google" button (primary, above email form)
+- Toggle between Sign In and Sign Up modes
+- Error handling with toast notifications
+- Auto-redirect on successful auth
 
-**Airport Autocomplete Approach**:
-- Use a bundled JSON file with major airports (~5000 airports)
-- Use Fuse.js for fuzzy search (already a pattern in similar libraries)
-- Display: "JFK - New York John F. Kennedy" format
-- Store IATA code for API calls
+### Step 4: Create Auth Context/Hook
 
-### Step 3: Create Airport Data and Search
+**File: `src/hooks/useAuth.tsx`**
 
-**File: `src/data/airports.json`**
+React context for auth state:
+- Current user and session state
+- Loading state during auth checks
+- Sign in/out functions
+- Profile data fetching
+- Works with both email and Google OAuth
 
-A curated list of major airports with:
-```json
-{
-  "iata": "JFK",
-  "name": "John F. Kennedy International Airport",
-  "city": "New York",
-  "country": "United States",
-  "lat": 40.6413,
-  "lng": -73.7781
-}
-```
+### Step 5: Create Protected Route Component
 
-**File: `src/lib/airportSearch.ts`**
+**File: `src/components/ProtectedRoute.tsx`**
 
-Functions for:
-- `searchAirports(query: string)` - Fuzzy search airports
-- `getAirportByIata(code: string)` - Get airport by IATA
-- `getNearestAirport(lat: number, lng: number)` - Find closest airport to coordinates
-- `getUserLocationAirport()` - Use browser geolocation to suggest departure airport
+HOC/wrapper component:
+- Checks if user is authenticated
+- Shows loading spinner during auth check
+- Redirects to /auth if not logged in
+- Renders children if authenticated
 
-### Step 4: Create Add Travelers Component
+### Step 6: Create Profile Page
 
-**File: `src/components/trip-wizard/AddTravelersStep.tsx`**
+**File: `src/pages/Profile.tsx`**
 
-UI for adding fellow travelers:
-- Card showing the main traveler (from ID scan) as "organizer"
-- "Add Traveler" button to add more people
-- For each traveler:
-  - Name input
-  - Toggle: "Flying from same airport" (default on)
-  - If off, show origin airport selector
-- Visual list of all travelers with their departure airports
-- Continue button
+Main profile page with tabs/sections:
+- Header with avatar (editable) + name
+- Tabbed interface:
+  - About (phone, email)
+  - My Photos (personal gallery)
+  - Travel Gallery (photos + videos)
+  - Places I've Been (cities, states, countries)
 
-### Step 5: Create Trip Search State Type
+### Step 7: Create Profile Components
 
-**File: `src/lib/tripTypes.ts`**
+**Avatar Section:**
+- `src/components/profile/ProfileHeader.tsx` - Large avatar with edit overlay
+- `src/components/profile/AvatarUpload.tsx` - Photo upload with crop/preview
 
-Define the data structures:
-```typescript
-interface TripSearch {
-  organizer: TravelerInfo;
-  destination: Airport;
-  travelers: Traveler[];
-  departureDate: Date;
-  returnDate: Date;
-}
+**Personal Info:**
+- `src/components/profile/PersonalInfoForm.tsx` - Email, phone editor
 
-interface Traveler {
-  id: string;
-  name: string;
-  origin: Airport;
-  isOrganizer: boolean;
-}
+**Photo Galleries:**
+- `src/components/profile/PhotoGallery.tsx` - Masonry grid of photos
+- `src/components/profile/TravelGallery.tsx` - Photos + videos with location tags
+- `src/components/profile/MediaUploader.tsx` - Drag-drop upload with progress
 
-interface Airport {
-  iata: string;
-  name: string;
-  city: string;
-  country: string;
-}
+**Travel History:**
+- `src/components/profile/PlacesVisited.tsx` - Main container with sub-sections
+- `src/components/profile/CityList.tsx` - Searchable list of cities
+- `src/components/profile/StateList.tsx` - List of states/provinces
+- `src/components/profile/ContinentSection.tsx` - Collapsible continent with countries
+- `src/components/profile/AddPlaceModal.tsx` - Modal to add new location
 
-interface TripResult {
-  flights: FlightOption[];
-  accommodations: AccommodationOption[];
-  perPersonCost: number;
-  totalCost: number;
-  breakdown: CostBreakdown[];
-}
-```
+### Step 8: Update Navigation
 
-### Step 6: Create AI Search Edge Function
+**File: `src/pages/Index.tsx`**
 
-**File: `supabase/functions/search-trip/index.ts`**
+Update the "Sign In" button in the navbar:
+- If not logged in: Link to /auth
+- If logged in: Show avatar with dropdown (Profile, Sign Out)
 
-Edge function that:
-1. Receives trip search parameters (destination, dates, travelers with origins)
-2. Uses Gemini 3 with web grounding to search for:
-   - Best flight prices for each traveler's route
-   - Accommodation options at the destination
-3. Returns structured results with pricing
+### Step 9: Update App Routes
 
-**Using Gemini's Web Grounding**:
-Since Gemini has access to Google Flights data through its training, we can prompt it to provide realistic flight estimates. For actual booking, we'd integrate real APIs later, but for MVP this gives users a realistic preview.
+**File: `src/App.tsx`**
 
-**Tool Calling Schema**:
-```typescript
-const searchTripTool = {
-  type: "function",
-  function: {
-    name: "compile_trip_results",
-    parameters: {
-      type: "object",
-      properties: {
-        flights: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              traveler_name: { type: "string" },
-              origin: { type: "string" },
-              destination: { type: "string" },
-              outbound_price: { type: "number" },
-              return_price: { type: "number" },
-              airline: { type: "string" },
-              departure_time: { type: "string" },
-              arrival_time: { type: "string" }
-            }
-          }
-        },
-        accommodation: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            price_per_night: { type: "number" },
-            total_nights: { type: "number" },
-            rating: { type: "number" }
-          }
-        },
-        total_per_person: { type: "number" },
-        trip_total: { type: "number" }
-      }
-    }
-  }
-};
-```
-
-### Step 7: Create Search Processing Animation
-
-**File: `src/components/trip-wizard/SearchingStep.tsx`**
-
-Animated loading state showing:
-- "Finding the best flights..." → "Comparing prices..." → "Calculating costs..."
-- Airplane animation or pulsing globe
-- Takes 5-10 seconds for AI to search and respond
-
-### Step 8: Create Trip Summary / Receipt Component
-
-**File: `src/components/trip-wizard/TripSummaryStep.tsx`**
-
-Beautiful itemized receipt showing:
-- Destination header with image
-- Dates
-- **Per-traveler breakdown**:
-  - Traveler name
-  - Flight route (origin → destination)
-  - Flight cost (round trip)
-  - Share of accommodation
-  - **Subtotal for that person**
-- **Trip total**
-- **Share Link** button (for future: generate payment link)
-- **Edit** button to go back
-
-Styled like a modern receipt/invoice with clean typography.
-
-### Step 9: Create API Client
-
-**File: `src/lib/tripSearch.ts`**
-
-Client-side function to call the edge function and handle the response.
+Add new routes:
+- /auth - Authentication page
+- /profile - User profile (protected)
 
 ---
 
@@ -246,98 +197,115 @@ Client-side function to call the edge function and handle the response.
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/pages/CreateTrip.tsx` | Modify | Add new steps, state management for trip data |
-| `src/data/airports.json` | Create | Curated list of ~500 major airports |
-| `src/lib/airportSearch.ts` | Create | Airport search utilities with Fuse.js |
-| `src/lib/tripTypes.ts` | Create | TypeScript interfaces for trip data |
-| `src/lib/tripSearch.ts` | Create | API client for trip search |
-| `src/components/trip-wizard/TripDetailsStep.tsx` | Create | Destination, origin, dates form |
-| `src/components/trip-wizard/AirportAutocomplete.tsx` | Create | Reusable airport search input |
-| `src/components/trip-wizard/AddTravelersStep.tsx` | Create | Add fellow travelers UI |
-| `src/components/trip-wizard/TravelerCard.tsx` | Create | Individual traveler display card |
-| `src/components/trip-wizard/SearchingStep.tsx` | Create | AI search loading animation |
-| `src/components/trip-wizard/TripSummaryStep.tsx` | Create | Itemized receipt/summary |
-| `src/components/trip-wizard/CostBreakdown.tsx` | Create | Per-person cost breakdown card |
-| `supabase/functions/search-trip/index.ts` | Create | Gemini AI trip search function |
-| `supabase/config.toml` | Modify | Add search-trip function config |
+| (Database Migration) | Create | Tables, RLS, storage buckets |
+| `src/pages/Auth.tsx` | Create | Sign in/up page with Google OAuth |
+| `src/pages/Profile.tsx` | Create | User profile page |
+| `src/hooks/useAuth.tsx` | Create | Auth context and hook |
+| `src/components/ProtectedRoute.tsx` | Create | Auth guard component |
+| `src/components/profile/ProfileHeader.tsx` | Create | Avatar + name header |
+| `src/components/profile/AvatarUpload.tsx` | Create | Avatar upload dialog |
+| `src/components/profile/PersonalInfoForm.tsx` | Create | Edit phone/email |
+| `src/components/profile/PhotoGallery.tsx` | Create | Personal photos grid |
+| `src/components/profile/TravelGallery.tsx` | Create | Travel media grid |
+| `src/components/profile/MediaUploader.tsx` | Create | Upload component |
+| `src/components/profile/PlacesVisited.tsx` | Create | Travel history section |
+| `src/components/profile/CityList.tsx` | Create | Cities list |
+| `src/components/profile/StateList.tsx` | Create | States list |
+| `src/components/profile/ContinentSection.tsx` | Create | Countries by continent |
+| `src/components/profile/AddPlaceModal.tsx` | Create | Add location modal |
+| `src/App.tsx` | Modify | Add /auth and /profile routes |
+| `src/pages/Index.tsx` | Modify | Update nav with auth state |
 
 ---
 
 ## UI/UX Details
 
-### Airport Autocomplete Behavior
-- Shows placeholder: "Where to?" or "Leaving from?"
-- On focus, show recent/popular airports
-- On type, fuzzy search through airport database
-- Results show: "JFK - New York, USA" format with IATA prominent
-- Geolocation button for origin to auto-detect nearest airport
+### Auth Page Design
+- Clean white background with subtle gradient
+- Large "Out the Group Chat" logo at top
+- Framer Motion stagger animation for form elements
+- Google button: White with colored Google logo, prominent
+- Separator: "or continue with email"
+- Floating input labels with smooth transitions
+- Spring animations on button hover/tap
+- Success: confetti-like particle effect
 
-### Date Picker Behavior
-- Single date range picker (departure → return)
-- Minimum departure: tomorrow
-- Calendar shows 2 months
-- Mobile: fullscreen modal calendar
+### Profile Page Design
+- Full-bleed avatar at top (like iOS contact)
+- Sticky name below avatar as user scrolls
+- Horizontal pill tabs for sections
+- Smooth page transitions between tabs
+- Masonry photo grid with hover zoom
+- Add buttons as floating action buttons
+- Pull-to-refresh on mobile
 
-### Add Travelers UX
-- Start with organizer card (from ID)
-- "Add Traveler" opens inline form
-- Clean card for each traveler with avatar placeholder
-- Swipe to remove on mobile, X button on desktop
-- Clear visual of different departure airports if applicable
+### Travel History UI
+- Continent sections as collapsible accordions
+- Country flags next to names
+- Visual counter badges (e.g., "12 cities")
+- Map visualization option (future)
+- Autocomplete for adding new places
 
-### Receipt/Summary Design
-- White card with subtle shadow
-- Destination banner image at top
-- Line items with clean dividers
-- Bold totals
-- Primary CTA: "Share Trip" or "Get Payment Link"
+### Animation Patterns
+- Page transitions: `opacity: 0 -> 1`, `y: 20 -> 0`
+- Tab switches: Horizontal slide with crossfade
+- Photo uploads: Scale up with spring
+- Button hovers: Subtle scale (1.02)
+- Loading states: Skeleton with shimmer
 
 ---
 
 ## Technical Notes
 
-### Geolocation for Origin Airport
+### Google OAuth Integration
+Using Lovable Cloud's managed Google OAuth (no API keys needed):
 ```typescript
-// In AirportAutocomplete or TripDetailsStep
-const detectNearestAirport = async () => {
-  if (!navigator.geolocation) return null;
-  
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nearest = findNearestAirport(
-          position.coords.latitude,
-          position.coords.longitude
-        );
-        resolve(nearest);
-      },
-      () => resolve(null)
-    );
+import { lovable } from "@/integrations/lovable/index";
+
+const handleGoogleSignIn = async () => {
+  const { error } = await lovable.auth.signInWithOAuth("google", {
+    redirect_uri: window.location.origin,
   });
 };
 ```
 
-### Airport Data Source
-We'll include a curated JSON of the top 500 airports globally. This keeps the bundle small (~50KB gzipped) while covering the vast majority of use cases.
+### File Upload Pattern
+```typescript
+// Upload to storage bucket
+const { data, error } = await supabase.storage
+  .from('avatars')
+  .upload(`${userId}/${filename}`, file);
 
-### Gemini Search Prompt Strategy
-The edge function will prompt Gemini with:
-- Specific dates and routes
-- Request for realistic price estimates
-- Structured output via tool calling
-- Instruction to provide airline names and approximate times
+// Get public URL
+const { data: { publicUrl } } = supabase.storage
+  .from('avatars')
+  .getPublicUrl(`${userId}/${filename}`);
+```
 
-Since we can't actually book through Gemini, this serves as a planning/estimation tool. Future integration could use real flight APIs (Amadeus, Skyscanner) for actual booking.
+### Profile Auto-Creation
+Database trigger creates profile on signup:
+```sql
+CREATE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### Continent Data
+For the countries-by-continent feature, we'll include a static mapping of countries to continents in `src/data/continents.ts`.
 
 ---
 
-## Step Counter Update
+## Security Considerations
 
-The header currently shows "Step 1 of 3". After this implementation:
-- Step 1: ID Upload/Review
-- Step 2: Trip Details (destination, dates)
-- Step 3: Add Travelers
-- Step 4: Summary/Receipt
-
-Update the step counter to reflect current position.
+- All profile data protected by RLS (user can only access their own)
+- Storage buckets require authentication for uploads
+- Avatar bucket is public for read (profile pics need to be visible)
+- Email validation with zod before submission
+- Rate limiting handled by backend auth
+- No sensitive data logged to console
 
