@@ -2,3 +2,6 @@ project_id = "ntxtymwpxhuajbedcqyv"
 
 [functions.group-chat]
 verify_jwt = false
+
+[functions.extract-id]
+verify_jwt = false
