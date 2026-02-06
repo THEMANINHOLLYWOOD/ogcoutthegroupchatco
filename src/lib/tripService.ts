@@ -83,6 +83,7 @@ export async function fetchTrip(tripId: string): Promise<{ success: boolean; tri
       itinerary: rawData.itinerary as Itinerary | null,
       itinerary_status: rawData.itinerary_status as SavedTrip["itinerary_status"],
       share_code: rawData.share_code as string,
+      share_image_url: rawData.share_image_url as string | null,
       link_created_at: rawData.link_created_at as string | null,
       link_expires_at: rawData.link_expires_at as string | null,
       created_at: rawData.created_at as string,
@@ -188,6 +189,7 @@ export async function subscribeToTripUpdates(
           itinerary: (data.itinerary as unknown) as Itinerary | null,
           itinerary_status: data.itinerary_status as SavedTrip["itinerary_status"],
           share_code: data.share_code as string,
+          share_image_url: data.share_image_url as string | null,
           link_created_at: data.link_created_at as string | null,
           link_expires_at: data.link_expires_at as string | null,
           created_at: data.created_at as string,
@@ -282,6 +284,18 @@ export async function claimTrip(tripId: string): Promise<{ success: boolean; err
       return { success: false, error: "You must be logged in to claim a trip" };
     }
 
+    // First fetch the trip to get destination info
+    const { data: tripData, error: fetchError } = await supabase
+      .from("trips")
+      .select("destination_city, destination_country, travelers")
+      .eq("id", tripId)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching trip for claim:", fetchError);
+      return { success: false, error: fetchError.message };
+    }
+
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
@@ -298,6 +312,19 @@ export async function claimTrip(tripId: string): Promise<{ success: boolean; err
       console.error("Error claiming trip:", error);
       return { success: false, error: error.message };
     }
+
+    // Trigger share image generation in background (fire and forget)
+    const travelers = (tripData.travelers as unknown) as TravelerCost[];
+    supabase.functions.invoke("generate-share-image", {
+      body: {
+        tripId,
+        destinationCity: tripData.destination_city,
+        destinationCountry: tripData.destination_country,
+        travelerCount: travelers?.length || 1,
+      },
+    }).catch(err => {
+      console.error("Error triggering share image generation:", err);
+    });
 
     return { success: true };
   } catch (err) {

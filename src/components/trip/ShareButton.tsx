@@ -107,7 +107,7 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
     );
   }
 
-  // Already claimed - show share options
+  // Already claimed - show share options (simplified)
   return (
     <div className="space-y-3">
       {/* Share Code Display */}
@@ -152,49 +152,14 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
         </Button>
       </motion.div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2">
-        <Button
-          onClick={handleCopyLink}
-          variant="outline"
-          className="flex-1 h-12 rounded-xl"
-        >
-          <AnimatePresence mode="wait">
-            {copiedLink ? (
-              <motion.div
-                key="check"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="flex items-center gap-2"
-              >
-                <Check className="w-4 h-4 text-primary" />
-                <span>Copied!</span>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="copy"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="flex items-center gap-2"
-              >
-                <Link2 className="w-4 h-4" />
-                <span>Copy Link</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Button>
-
-        {typeof navigator.share === "function" && (
-          <Button
-            onClick={handleNativeShare}
-            className="h-12 px-4 rounded-xl"
-          >
-            <Share className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
+      {/* Single Share Button */}
+      <Button
+        onClick={handleNativeShare}
+        className="w-full h-12 rounded-xl"
+      >
+        <Share className="w-4 h-4 mr-2" />
+        Share with Friends
+      </Button>
     </div>
   );
 }

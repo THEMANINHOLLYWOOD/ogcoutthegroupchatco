@@ -252,6 +252,7 @@ export type Database = {
           organizer_name: string
           return_date: string
           share_code: string
+          share_image_url: string | null
           total_per_person: number
           travelers: Json
           trip_total: number
@@ -275,6 +276,7 @@ export type Database = {
           organizer_name: string
           return_date: string
           share_code?: string
+          share_image_url?: string | null
           total_per_person?: number
           travelers?: Json
           trip_total?: number
@@ -298,6 +300,7 @@ export type Database = {
           organizer_name?: string
           return_date?: string
           share_code?: string
+          share_image_url?: string | null
           total_per_person?: number
           travelers?: Json
           trip_total?: number
