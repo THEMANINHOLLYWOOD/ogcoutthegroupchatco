@@ -9,6 +9,7 @@ import { PersonalInfoForm } from '@/components/profile/PersonalInfoForm';
 import { PhotoGallery } from '@/components/profile/PhotoGallery';
 import { TravelGallery } from '@/components/profile/TravelGallery';
 import { PlacesVisited } from '@/components/profile/PlacesVisited';
+import { TravelCompanions } from '@/components/profile/TravelCompanions';
 
 const Profile = () => {
   const { profile, signOut } = useAuth();
@@ -62,9 +63,12 @@ const Profile = () => {
       {/* Tabs */}
       <div className="container mx-auto px-4 pb-8">
         <Tabs defaultValue="about" className="w-full">
-          <TabsList className="w-full grid grid-cols-4 h-auto p-1 mb-6">
+          <TabsList className="w-full grid grid-cols-5 h-auto p-1 mb-6">
             <TabsTrigger value="about" className="text-xs sm:text-sm py-2">
               About
+            </TabsTrigger>
+            <TabsTrigger value="companions" className="text-xs sm:text-sm py-2">
+              Companions
             </TabsTrigger>
             <TabsTrigger value="photos" className="text-xs sm:text-sm py-2">
               Photos
@@ -88,6 +92,16 @@ const Profile = () => {
                 phone={profile.phone}
                 fullName={profile.full_name}
               />
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="companions">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
+            >
+              <TravelCompanions />
             </motion.div>
           </TabsContent>
 

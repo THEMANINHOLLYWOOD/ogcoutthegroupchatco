@@ -1,9 +1,15 @@
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { TravelerForm } from "./TravelerForm";
 import { TravelerInfo } from "@/lib/idExtraction";
-import { ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react";
+import { CheckCircle2, RefreshCw, UserPlus, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { saveUserDocument, saveCompanion, travelerInfoToCompanion } from "@/lib/travelerService";
+import { toast } from "sonner";
 
 interface TravelerReviewProps {
   data: TravelerInfo;
@@ -32,7 +38,13 @@ export function TravelerReview({
   onRetake,
   onChange,
 }: TravelerReviewProps) {
-  const handleConfirm = () => {
+  const { user } = useAuth();
+  const [saveToProfile, setSaveToProfile] = useState(false);
+  const [saveAsCompanion, setSaveAsCompanion] = useState(false);
+  const [companionNickname, setCompanionNickname] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleConfirm = async () => {
     // Validate required fields
     const requiredFields: (keyof TravelerInfo)[] = [
       "first_name",
@@ -45,8 +57,36 @@ export function TravelerReview({
 
     const missingFields = requiredFields.filter((field) => !data[field]);
     if (missingFields.length > 0) {
-      // Could show a toast here, but for now just don't proceed
+      toast.error("Please fill in all required fields");
       return;
+    }
+
+    // Handle saving if user is authenticated
+    if (user && (saveToProfile || saveAsCompanion)) {
+      setSaving(true);
+      
+      if (saveToProfile) {
+        const result = await saveUserDocument(user.id, data);
+        if (!result.success) {
+          toast.error("Failed to save to profile");
+          setSaving(false);
+          return;
+        }
+        toast.success("Saved to your profile");
+      }
+
+      if (saveAsCompanion && companionNickname.trim()) {
+        const companionInput = travelerInfoToCompanion(data, companionNickname.trim());
+        const result = await saveCompanion(user.id, companionInput);
+        if (!result.success) {
+          toast.error("Failed to save companion");
+          setSaving(false);
+          return;
+        }
+        toast.success("Companion saved");
+      }
+
+      setSaving(false);
     }
 
     onConfirm(data);
@@ -102,12 +142,86 @@ export function TravelerReview({
         <TravelerForm data={data} onChange={onChange} />
       </div>
 
+      {/* Save Options (for authenticated users) */}
+      {user && (
+        <div className="space-y-3 mb-6">
+          {/* Save to Profile */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between p-4 bg-muted/30 rounded-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <span className="font-medium text-foreground text-sm">Save to My Profile</span>
+                <p className="text-xs text-muted-foreground">Auto-fill on future trips</p>
+              </div>
+            </div>
+            <Switch 
+              checked={saveToProfile} 
+              onCheckedChange={(checked) => {
+                setSaveToProfile(checked);
+                if (checked) setSaveAsCompanion(false);
+              }} 
+            />
+          </motion.div>
+
+          {/* Save as Companion */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="flex items-center justify-between p-4 bg-muted/30 rounded-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <UserPlus className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <span className="font-medium text-foreground text-sm">Save as Travel Companion</span>
+                <p className="text-xs text-muted-foreground">Add to your contacts</p>
+              </div>
+            </div>
+            <Switch 
+              checked={saveAsCompanion} 
+              onCheckedChange={(checked) => {
+                setSaveAsCompanion(checked);
+                if (checked) setSaveToProfile(false);
+              }} 
+            />
+          </motion.div>
+
+          {/* Nickname input for companion */}
+          <AnimatePresence>
+            {saveAsCompanion && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <Input
+                  value={companionNickname}
+                  onChange={(e) => setCompanionNickname(e.target.value)}
+                  placeholder="Nickname (e.g., Mom, Jake)"
+                  className="h-11 rounded-xl"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Button
           variant="outline"
           onClick={onRetake}
           className="flex-1 gap-2"
+          disabled={saving}
         >
           <RefreshCw className="w-4 h-4" />
           Retake Photo
@@ -115,9 +229,20 @@ export function TravelerReview({
         <Button
           onClick={handleConfirm}
           className="flex-1 gap-2"
+          disabled={saving || (saveAsCompanion && !companionNickname.trim())}
         >
-          <CheckCircle2 className="w-4 h-4" />
-          Confirm & Continue
+          {saving ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-4 h-4 border-2 border-background border-t-transparent rounded-full"
+            />
+          ) : (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              Confirm & Continue
+            </>
+          )}
         </Button>
       </div>
 
