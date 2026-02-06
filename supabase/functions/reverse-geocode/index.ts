@@ -1,26 +1,22 @@
-import { Hono } from "https://deno.land/x/hono@v3.12.6/mod.ts";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const app = new Hono();
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-app.options("/*", (c) => {
-  return c.text("ok", 200, corsHeaders);
-});
-
-app.post("/", async (c) => {
   try {
-    const { latitude, longitude } = await c.req.json();
+    const { latitude, longitude } = await req.json();
 
     if (!latitude || !longitude) {
-      return c.json(
-        { error: "latitude and longitude are required" },
-        400,
-        corsHeaders
+      return new Response(
+        JSON.stringify({ error: "latitude and longitude are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -38,10 +34,9 @@ app.post("/", async (c) => {
 
     if (!response.ok) {
       console.error("Nominatim API error:", response.status);
-      return c.json(
-        { error: "Failed to fetch location data" },
-        500,
-        corsHeaders
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch location data" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -49,10 +44,9 @@ app.post("/", async (c) => {
     console.log("Nominatim response:", JSON.stringify(data.address));
 
     if (!data.address) {
-      return c.json(
-        { error: "Could not determine location" },
-        404,
-        corsHeaders
+      return new Response(
+        JSON.stringify({ error: "Could not determine location" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -79,25 +73,21 @@ app.post("/", async (c) => {
 
     console.log(`Parsed location: ${city}, ${state}, ${country}`);
 
-    return c.json(
-      {
+    return new Response(
+      JSON.stringify({
         city,
         state,
         country,
         countryCode,
-        raw: address, // Include raw data for debugging
-      },
-      200,
-      corsHeaders
+        raw: address,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Reverse geocode error:", error);
-    return c.json(
-      { error: "Internal server error" },
-      500,
-      corsHeaders
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
-
-Deno.serve(app.fetch);
