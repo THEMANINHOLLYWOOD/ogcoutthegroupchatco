@@ -1,90 +1,198 @@
 
-# Plan: 6-Digit Trip Code System with Join Flow
+
+# Plan: Save Traveler & Friends ID/Passport Information
 
 ## Overview
 
-Every trip will receive a unique 6-digit alphanumeric code (e.g., "X7K2M9") in addition to the UUID. Users can join trips by entering this code through a beautiful, minimalistic OTP-style input. The join flow will use ultra-smooth animations and lead users directly to the trip page where they can view details and eventually book their spot.
+This feature enables users to save their own ID/passport information to their profile and also save friends' information for quick access when planning group trips. When a user uploads an ID during trip creation, they'll have the option to save it. They can also manage a "Travel Companions" list in their profile to quickly add friends to future trips.
 
 ---
 
 ## User Flow
 
 ```text
-[Home Page]
+[Create Trip - ID Upload]
       |
-      | Click "Join a Trip"
+      | User uploads ID/passport
+      | AI extracts traveler info
       v
-[Join Trip Modal/Page]
+[Review Screen]
       |
-      | Enter 6-digit code (OTP-style input)
-      |   - Each digit animates as typed
-      |   - Auto-validates when complete
+      | "Save to My Profile" toggle (for own info)
+      | OR "Save as Travel Companion" (for friends)
       v
-[Lookup Trip by Code]
+[Confirm & Continue]
       |
-      | Found? → Navigate to /trip/:tripId
-      | Not found? → Shake animation + error message
+      | Saves to database if toggled on
       v
-[Trip View Page]
+-----------------------------------------
+[Add Travelers Step]
       |
-      | User sees full itinerary
-      | Can view their cost share
-      | "Join This Trip" button
+      | "Add Traveler" button shows:
+      |   1. Saved companions list
+      |   2. Manual entry option
+      |   3. Scan new ID option
+      v
+[Select saved companion]
+      |
+      | Auto-fills name + origin
+      | Pre-populated passport info for booking
+      v
+-----------------------------------------
+[Profile Page - New "Companions" Tab]
+      |
+      | View saved travel companions
+      | Add/edit/delete companions
+      | Scan new companion ID
 ```
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Database Migration
+### Step 1: Database Schema
 
-Add a unique 6-digit code column to the trips table:
+Create two new tables:
 
-```sql
-ALTER TABLE trips ADD COLUMN share_code TEXT UNIQUE;
-CREATE UNIQUE INDEX trips_share_code_idx ON trips(share_code);
-```
+**traveler_documents** - Stores the user's own travel document info:
+- `id` (uuid, primary key)
+- `user_id` (uuid, FK to profiles)
+- `document_type` (text) - passport, drivers_license, national_id
+- `full_legal_name` (text)
+- `first_name` (text)
+- `middle_name` (text, nullable)
+- `last_name` (text)
+- `date_of_birth` (date)
+- `gender` (text) - M, F, X
+- `nationality` (text, nullable)
+- `document_number` (text, encrypted-at-rest by Supabase)
+- `expiration_date` (date)
+- `issue_date` (date, nullable)
+- `place_of_birth` (text, nullable)
+- `issuing_country` (text, nullable)
+- `created_at` (timestamp)
+- `updated_at` (timestamp)
 
-The code will be generated on trip creation using uppercase alphanumeric characters (excluding confusing ones like 0/O, 1/I/L).
+**travel_companions** - Stores friends/family info:
+- `id` (uuid, primary key)
+- `user_id` (uuid, FK to profiles) - owner of this companion entry
+- `nickname` (text) - friendly name like "Mom", "Best Friend Jake"
+- `document_type` (text)
+- `full_legal_name` (text)
+- `first_name` (text)
+- `middle_name` (text, nullable)
+- `last_name` (text)
+- `date_of_birth` (date, nullable)
+- `gender` (text, nullable)
+- `nationality` (text, nullable)
+- `document_number` (text, nullable) - optional for privacy
+- `expiration_date` (date, nullable)
+- `home_airport_iata` (text, nullable) - default airport
+- `home_airport_name` (text, nullable)
+- `home_airport_city` (text, nullable)
+- `created_at` (timestamp)
+- `updated_at` (timestamp)
 
-### Step 2: Update Trip Service
+**RLS Policies:**
+- Users can only SELECT, INSERT, UPDATE, DELETE their own documents/companions
+- No public access
 
-Modify `saveTrip` to generate and store a unique 6-digit code:
+### Step 2: Create Traveler Service
 
-- Use characters: `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (26 chars - no 0,O,1,I,L)
-- Generate code and check for collisions
-- Return the code along with tripId
+Create a new service file to manage saved travelers:
 
-Add new function `fetchTripByCode(code)` to look up trips by share code.
+**File: `src/lib/travelerService.ts`**
 
-### Step 3: Create Join Trip Page
+Functions:
+- `saveUserDocument(userId, travelerInfo)` - Save/update user's own passport info
+- `getUserDocument(userId)` - Fetch user's saved document
+- `saveCompanion(userId, companionData)` - Add a travel companion
+- `getCompanions(userId)` - List all companions
+- `updateCompanion(companionId, data)` - Edit companion
+- `deleteCompanion(companionId)` - Remove companion
 
-Create a new page `/join` with a minimalistic, Apple-inspired design:
+### Step 3: Update TravelerReview Component
 
-- Clean centered layout
-- Large "Join a Trip" heading
-- 6 individual OTP-style input slots
-- Each slot animates on focus/input
-- Auto-submits when all 6 digits entered
-- Loading spinner while validating
-- Success animation before redirect
-- Shake animation on invalid code
+Modify the review screen to include a save option:
 
-### Step 4: Update Index Page
+**File: `src/components/id-scan/TravelerReview.tsx`**
 
-Make the "Join a Trip" button functional:
-- Navigate to `/join` on click
-- Alternatively, open a modal with the code input
+Changes:
+- Add "Save to My Profile" switch toggle (only for authenticated users)
+- Add "Save as Travel Companion" option with nickname input
+- Call save function on confirm if toggled on
+- Show subtle success indicator when saved
 
-### Step 5: Update Trip View & Share
+### Step 4: Create Companion Picker Component
 
-- Display the 6-digit code prominently on the trip page
-- ShareButton shows both the link AND the code
-- Easy copy for the code separately
+A new component to select from saved companions:
 
-### Step 6: Update Types
+**File: `src/components/trip-wizard/CompanionPicker.tsx`**
 
-Add `share_code` to SavedTrip interface.
+Features:
+- Sheet/modal that slides up
+- List of saved companions with avatars
+- Search/filter functionality
+- "Scan New ID" option
+- "Enter Manually" option
+- Selection triggers callback with companion data
+
+### Step 5: Update AddTravelersStep
+
+Enhance the add travelers flow:
+
+**File: `src/components/trip-wizard/AddTravelersStep.tsx`**
+
+Changes:
+- "Add Traveler" button opens CompanionPicker instead of inline form
+- Show saved companions as quick-add cards
+- Selecting a companion auto-fills their info and default airport
+- Manual entry still available as fallback
+
+### Step 6: Create Profile Companions Tab
+
+Add a new tab to the profile page:
+
+**File: `src/components/profile/TravelCompanions.tsx`**
+
+Features:
+- Grid of companion cards with avatars
+- Each card shows name, home airport, document expiry status
+- Add new companion button (opens ID scan flow)
+- Edit/delete actions
+- Empty state with friendly illustration
+
+### Step 7: Update Profile Page
+
+Add the new tab:
+
+**File: `src/pages/Profile.tsx`**
+
+Changes:
+- Add "Companions" tab to the TabsList
+- Import and render TravelCompanions component
+
+### Step 8: Create Companion ID Scan Modal
+
+A reusable modal for scanning companion IDs:
+
+**File: `src/components/profile/AddCompanionModal.tsx`**
+
+Features:
+- Dialog/Sheet with ID upload flow
+- Uses existing IDUploadCard, IDProcessing components
+- After extraction, shows form with nickname field
+- Saves to travel_companions on confirm
+
+### Step 9: Update useAuth Hook (Optional Enhancement)
+
+Extend the Profile interface to include the user's own document:
+
+**File: `src/hooks/useAuth.tsx`**
+
+Changes:
+- Optionally fetch and include traveler document in profile context
+- Add `travelerDocument` to Profile interface
 
 ---
 
@@ -92,164 +200,186 @@ Add `share_code` to SavedTrip interface.
 
 | File | Action | Description |
 |------|--------|-------------|
-| (Database Migration) | Create | Add share_code column with unique index |
-| `src/pages/JoinTrip.tsx` | Create | Join trip page with OTP input |
-| `src/lib/tripService.ts` | Modify | Add code generation + lookup by code |
-| `src/lib/tripTypes.ts` | Modify | Add share_code to SavedTrip |
-| `src/pages/Index.tsx` | Modify | Link Join button to /join |
-| `src/components/trip/ShareButton.tsx` | Modify | Show share code alongside link |
-| `src/pages/TripView.tsx` | Modify | Display share code in header |
-| `src/App.tsx` | Modify | Add /join route |
+| (Database Migration) | Create | traveler_documents and travel_companions tables |
+| `src/lib/travelerService.ts` | Create | CRUD functions for saved travelers |
+| `src/lib/tripTypes.ts` | Modify | Add SavedCompanion interface |
+| `src/components/id-scan/TravelerReview.tsx` | Modify | Add save toggle and logic |
+| `src/components/trip-wizard/CompanionPicker.tsx` | Create | Companion selection sheet |
+| `src/components/trip-wizard/AddTravelersStep.tsx` | Modify | Integrate companion picker |
+| `src/components/profile/TravelCompanions.tsx` | Create | Companions management tab |
+| `src/components/profile/AddCompanionModal.tsx` | Create | ID scan modal for companions |
+| `src/pages/Profile.tsx` | Modify | Add Companions tab |
 
 ---
 
 ## Technical Details
 
-### Code Generation Algorithm
+### SavedCompanion Interface
 
 ```typescript
-const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-
-function generateShareCode(): string {
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += CHARS[Math.floor(Math.random() * CHARS.length)];
-  }
-  return code;
+export interface SavedCompanion {
+  id: string;
+  user_id: string;
+  nickname: string;
+  full_legal_name: string;
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  date_of_birth?: string;
+  gender?: string;
+  nationality?: string;
+  document_number?: string;
+  expiration_date?: string;
+  home_airport_iata?: string;
+  home_airport_name?: string;
+  home_airport_city?: string;
+  created_at: string;
+  updated_at: string;
 }
 ```
 
-Characters excluded: `0` (zero), `O` (oh), `1` (one), `I` (eye), `L` (el) - to avoid confusion when reading/sharing codes verbally.
+### CompanionPicker Animations
 
-### Join Page Animations
-
-**Input Slot Focus**:
+Staggered entry for companion cards:
 ```typescript
 <motion.div
-  animate={{ 
-    scale: isActive ? 1.05 : 1,
-    borderColor: isActive ? 'var(--primary)' : 'var(--border)'
-  }}
-  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: index * 0.05, type: "spring" }}
 />
 ```
 
-**Character Entry Pop**:
+Sheet slide-up:
 ```typescript
-<motion.span
-  initial={{ scale: 0, opacity: 0 }}
-  animate={{ scale: 1, opacity: 1 }}
-  transition={{ type: 'spring', stiffness: 600 }}
->
-  {char}
-</motion.span>
+<Sheet>
+  <SheetContent side="bottom" className="h-[80vh] rounded-t-3xl">
+    ...
+  </SheetContent>
+</Sheet>
 ```
 
-**Invalid Code Shake**:
+### Save Toggle UI
+
+Minimalistic switch with label:
 ```typescript
-<motion.div
-  animate={{ x: [0, -10, 10, -10, 10, 0] }}
-  transition={{ duration: 0.4 }}
-/>
+<div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+  <div>
+    <span className="font-medium">Save to My Profile</span>
+    <p className="text-xs text-muted-foreground">
+      Auto-fill on future trips
+    </p>
+  </div>
+  <Switch checked={saveToProfile} onCheckedChange={setSaveToProfile} />
+</div>
 ```
 
-**Success Animation**:
+### Companion Card Design
+
+Compact card with essential info:
 ```typescript
-<motion.div
-  initial={{ scale: 0 }}
-  animate={{ scale: 1 }}
-  transition={{ type: 'spring', stiffness: 400 }}
->
-  <Check className="w-16 h-16 text-primary" />
+<motion.div className="bg-card border border-border rounded-2xl p-4">
+  <div className="flex items-center gap-3">
+    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+      <User className="w-6 h-6 text-primary" />
+    </div>
+    <div className="flex-1">
+      <span className="font-medium">{companion.nickname}</span>
+      <div className="text-sm text-muted-foreground">
+        {companion.home_airport_iata || "No home airport"}
+      </div>
+    </div>
+    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+  </div>
 </motion.div>
-```
-
-### Lookup Function
-
-```typescript
-export async function fetchTripByCode(code: string): Promise<{ 
-  success: boolean; 
-  tripId?: string; 
-  error?: string 
-}> {
-  const { data, error } = await supabase
-    .from('trips')
-    .select('id')
-    .eq('share_code', code.toUpperCase())
-    .single();
-    
-  if (error || !data) {
-    return { success: false, error: 'Trip not found' };
-  }
-  
-  return { success: true, tripId: data.id };
-}
 ```
 
 ---
 
 ## UI/UX Details
 
-### Join Trip Page Layout
+### TravelerReview Save Section
 
-- Full-screen centered layout
-- Subtle gradient or blur background
-- "Join a Trip" as large heading
-- Subtext: "Enter the 6-digit code from your friend"
-- 6 large square input slots (48x48px each)
-- Spacing between slots for clarity
-- Keyboard auto-opens on mobile
-- Back button to return home
+- Positioned below the form, before action buttons
+- Clean toggle with descriptive text
+- For authenticated users only (hide for guests)
+- Subtle animation when toggled
 
-### Input Behavior
+### CompanionPicker Sheet
 
-- Auto-uppercase input
-- Auto-advance to next slot on entry
-- Backspace moves to previous slot
-- Paste support for full 6-digit code
-- Validates on complete (no submit button needed)
+- Bottom sheet on mobile (80% height)
+- Dialog on desktop
+- Search bar at top
+- Saved companions as vertical list
+- "Add New" section at bottom with options:
+  - Scan ID/Passport
+  - Enter Manually
 
-### Visual States
+### Profile Companions Tab
 
-1. **Empty**: Light border, subtle background
-2. **Focused**: Primary color ring, slight scale up
-3. **Filled**: Character pops in with spring animation
-4. **Loading**: All slots fade slightly, spinner appears
-5. **Error**: Red border, shake animation, error message
-6. **Success**: Green checkmark, redirects after brief delay
+- 2-column grid on mobile, 3-column on desktop
+- Each card shows:
+  - Avatar placeholder with initials
+  - Nickname (primary)
+  - Full name (secondary)
+  - Home airport code
+  - Document expiry warning if < 6 months
+- Empty state:
+  - Illustration of people
+  - "Add your first travel companion"
+  - "Scan their ID to auto-fill trip details"
 
-### Share Code Display
+### Quick Add Flow
 
-On TripView page, add above the share link:
-```
-Trip Code: X7K2M9
-```
-With a tap-to-copy action and subtle copy confirmation.
-
----
-
-## Database Schema Update
-
-```sql
--- Add share_code column
-ALTER TABLE trips ADD COLUMN share_code TEXT;
-
--- Generate codes for existing trips
-UPDATE trips SET share_code = 
-  substring(md5(random()::text) from 1 for 6)
-WHERE share_code IS NULL;
-
--- Make column unique and not null for future inserts
-ALTER TABLE trips ALTER COLUMN share_code SET NOT NULL;
-CREATE UNIQUE INDEX trips_share_code_unique_idx ON trips(share_code);
-```
+In AddTravelersStep, when user has saved companions:
+- Show horizontal scroll of companion avatars
+- Tap to instantly add to trip
+- Long-press to view details
 
 ---
 
-## Validation & Input Security
+## Security Considerations
 
-- Sanitize input to only allow alphanumeric characters
-- Convert to uppercase before lookup
-- Rate limit lookups to prevent brute force (6^26 = ~300M combinations)
-- Input maxLength enforced
-- No sensitive data exposed if code is wrong
+- All document info is protected by RLS
+- Users can only access their own data
+- Document numbers are optional for companions
+- Sensitive fields are never logged
+- Consider encrypting document_number column
+- Expiration dates can be used for booking reminders
+
+---
+
+## Data Flow
+
+```text
+[User uploads ID]
+      |
+      v
+[AI extracts TravelerInfo]
+      |
+      v
+[User reviews & toggles "Save"]
+      |
+      | If authenticated + save toggled:
+      v
+[travelerService.saveUserDocument()]
+      |
+      | Or for companions:
+      v
+[travelerService.saveCompanion()]
+      |
+      v
+[Data stored in database]
+      |
+-----------------------------------------
+[Future trip creation]
+      |
+      v
+[CompanionPicker fetches saved companions]
+      |
+      v
+[User selects companion]
+      |
+      v
+[Auto-populates traveler with saved info]
+```
+
