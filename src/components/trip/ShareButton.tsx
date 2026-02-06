@@ -1,15 +1,20 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link2, Check, Share, Copy } from "lucide-react";
+import { Link2, Check, Share, Copy, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ShareButtonProps {
   tripId: string;
   shareCode: string;
+  isClaimed?: boolean;
 }
 
-export function ShareButton({ tripId, shareCode }: ShareButtonProps) {
+export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButtonProps) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -67,6 +72,42 @@ export function ShareButton({ tripId, shareCode }: ShareButtonProps) {
     }
   };
 
+  const handleCreateLink = () => {
+    if (!user) {
+      // Redirect to auth, then back to claim
+      navigate(`/auth?redirect=/trip/${tripId}/claim`);
+    } else {
+      // Go directly to claim
+      navigate(`/trip/${tripId}/claim`);
+    }
+  };
+
+  // If not claimed yet, show "Create Link" CTA
+  if (!isClaimed) {
+    return (
+      <div className="space-y-3">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <Button
+            onClick={handleCreateLink}
+            className="w-full h-14 rounded-xl text-lg font-semibold"
+            size="lg"
+          >
+            Create Link
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+          <p className="text-xs text-muted-foreground mt-2">
+            {user ? "Save this trip to your profile" : "Sign up to share this trip with friends"}
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Already claimed - show share options
   return (
     <div className="space-y-3">
       {/* Share Code Display */}

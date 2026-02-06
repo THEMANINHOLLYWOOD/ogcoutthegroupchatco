@@ -246,6 +246,8 @@ export type Database = {
           id: string
           itinerary: Json | null
           itinerary_status: string
+          link_created_at: string | null
+          link_expires_at: string | null
           organizer_id: string | null
           organizer_name: string
           return_date: string
@@ -267,6 +269,8 @@ export type Database = {
           id?: string
           itinerary?: Json | null
           itinerary_status?: string
+          link_created_at?: string | null
+          link_expires_at?: string | null
           organizer_id?: string | null
           organizer_name: string
           return_date: string
@@ -288,6 +292,8 @@ export type Database = {
           id?: string
           itinerary?: Json | null
           itinerary_status?: string
+          link_created_at?: string | null
+          link_expires_at?: string | null
           organizer_id?: string | null
           organizer_name?: string
           return_date?: string

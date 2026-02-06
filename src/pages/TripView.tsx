@@ -229,9 +229,13 @@ export default function TripView() {
         <section className="sticky bottom-4 z-40">
           <div className="bg-background/95 backdrop-blur-sm p-4 rounded-2xl border border-border shadow-lg">
             <p className="text-sm text-muted-foreground text-center mb-3">
-              Share this trip with your travel group
+              {trip.organizer_id ? "Share this trip with your travel group" : "Save and share this trip"}
             </p>
-            <ShareButton tripId={trip.id} shareCode={trip.share_code} />
+            <ShareButton 
+              tripId={trip.id} 
+              shareCode={trip.share_code} 
+              isClaimed={!!trip.organizer_id}
+            />
           </div>
         </section>
       </main>

@@ -83,6 +83,8 @@ export async function fetchTrip(tripId: string): Promise<{ success: boolean; tri
       itinerary: rawData.itinerary as Itinerary | null,
       itinerary_status: rawData.itinerary_status as SavedTrip["itinerary_status"],
       share_code: rawData.share_code as string,
+      link_created_at: rawData.link_created_at as string | null,
+      link_expires_at: rawData.link_expires_at as string | null,
       created_at: rawData.created_at as string,
       updated_at: rawData.updated_at as string,
     };
@@ -186,6 +188,8 @@ export async function subscribeToTripUpdates(
           itinerary: (data.itinerary as unknown) as Itinerary | null,
           itinerary_status: data.itinerary_status as SavedTrip["itinerary_status"],
           share_code: data.share_code as string,
+          link_created_at: data.link_created_at as string | null,
+          link_expires_at: data.link_expires_at as string | null,
           created_at: data.created_at as string,
           updated_at: data.updated_at as string,
         };
@@ -268,4 +272,36 @@ export function getTotalAvailableActivitiesCost(itinerary: Itinerary | null): nu
       return dayTotal + (activity.estimated_cost || 0);
     }, 0);
   }, 0);
+}
+
+export async function claimTrip(tripId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: "You must be logged in to claim a trip" };
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    const { error } = await supabase
+      .from("trips")
+      .update({
+        organizer_id: user.id,
+        link_created_at: new Date().toISOString(),
+        link_expires_at: expiresAt.toISOString(),
+      } as never)
+      .eq("id", tripId);
+
+    if (error) {
+      console.error("Error claiming trip:", error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("Exception claiming trip:", err);
+    return { success: false, error: "Failed to claim trip" };
+  }
 }
