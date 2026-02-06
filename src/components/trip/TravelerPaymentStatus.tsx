@@ -43,9 +43,9 @@ export function TravelerPaymentStatus({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-foreground">Travelers</h3>
+        <h3 className="text-base sm:text-lg font-semibold text-foreground">Travelers</h3>
         <span className="text-sm text-muted-foreground">
           {paidCount}/{travelers.length} paid
         </span>
@@ -68,26 +68,26 @@ export function TravelerPaymentStatus({
                 isPaid ? "bg-primary/5" : "bg-muted/50"
               )}
             >
-              <div className="flex items-center gap-3">
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={undefined} />
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                <Avatar className="w-9 h-9 sm:w-10 sm:h-10 shrink-0">
+                  <AvatarImage src={traveler.avatar_url || undefined} />
                   <AvatarFallback className={cn(
-                    "text-sm font-semibold",
+                    "text-xs sm:text-sm font-semibold",
                     isPaid ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                   )}>
                     {getInitials(traveler.traveler_name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="font-medium text-foreground text-sm sm:text-base truncate">
                       {traveler.traveler_name}
                     </span>
                     {isFirst && (
-                      <span className="text-xs text-muted-foreground">(Organizer)</span>
+                      <span className="text-[10px] sm:text-xs text-muted-foreground shrink-0">(Organizer)</span>
                     )}
                   </div>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     ${traveler.subtotal.toLocaleString()}
                   </span>
                 </div>
@@ -100,16 +100,16 @@ export function TravelerPaymentStatus({
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    className="flex items-center gap-2 text-primary"
+                    className="flex items-center gap-1.5 sm:gap-2 text-primary shrink-0"
                   >
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 500, delay: 0.1 }}
                     >
-                      <Check className="w-5 h-5" />
+                      <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                     </motion.div>
-                    <span className="text-sm font-medium">Paid</span>
+                    <span className="text-xs sm:text-sm font-medium">Paid</span>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -117,20 +117,24 @@ export function TravelerPaymentStatus({
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
+                    className="shrink-0"
                   >
                     <Button
                       size="sm"
-                      className="rounded-full px-4"
+                      className="rounded-full px-3 sm:px-4 h-9 sm:h-auto text-xs sm:text-sm"
                       onClick={() => handlePay(traveler.traveler_name)}
                       disabled={isPaying}
                     >
                       {isPaying ? (
                         <>
                           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Paying...
+                          <span className="hidden sm:inline">Paying...</span>
                         </>
                       ) : (
-                        `Pay $${traveler.subtotal.toLocaleString()}`
+                        <>
+                          <span className="sm:hidden">Pay</span>
+                          <span className="hidden sm:inline">Pay ${traveler.subtotal.toLocaleString()}</span>
+                        </>
                       )}
                     </Button>
                   </motion.div>
@@ -145,7 +149,7 @@ export function TravelerPaymentStatus({
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="text-center text-sm text-primary font-medium"
+          className="text-center text-xs sm:text-sm text-primary font-medium"
         >
           ✨ All travelers have paid!
         </motion.div>

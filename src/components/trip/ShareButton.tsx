@@ -93,11 +93,11 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
         >
           <Button
             onClick={handleCreateLink}
-            className="w-full h-14 rounded-xl text-lg font-semibold"
+            className="w-full h-12 sm:h-14 rounded-xl text-base sm:text-lg font-semibold"
             size="lg"
           >
             Create Link
-            <ArrowRight className="w-5 h-5 ml-2" />
+            <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
           </Button>
           <p className="text-xs text-muted-foreground mt-2">
             {user ? "Save this trip to your profile" : "Sign up to share this trip with friends"}
@@ -116,9 +116,9 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between bg-muted/50 rounded-xl p-3"
       >
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">Trip Code:</span>
-          <span className="font-mono text-lg font-bold tracking-wider text-foreground">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <span className="text-xs sm:text-sm text-muted-foreground shrink-0">Trip Code:</span>
+          <span className="font-mono text-base sm:text-lg font-bold tracking-wider text-foreground truncate">
             {shareCode}
           </span>
         </div>
@@ -126,7 +126,7 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
           variant="ghost"
           size="sm"
           onClick={handleCopyCode}
-          className="h-8 px-2"
+          className="h-9 w-9 sm:h-8 sm:w-auto sm:px-2 shrink-0"
         >
           <AnimatePresence mode="wait">
             {copiedCode ? (
@@ -155,7 +155,7 @@ export function ShareButton({ tripId, shareCode, isClaimed = false }: ShareButto
       {/* Single Share Button */}
       <Button
         onClick={handleNativeShare}
-        className="w-full h-12 rounded-xl"
+        className="w-full h-11 sm:h-12 rounded-xl"
       >
         <Share className="w-4 h-4 mr-2" />
         Share with Friends
