@@ -1,198 +1,244 @@
 
-# Plan: ID/Passport Scanning with Gemini 3 Vision
+
+# Plan: Trip Details Flow - Destination, Dates, Travelers & AI Flight Search
 
 ## Overview
 
-When users click "Create a Trip", they'll be taken to a beautiful, minimalistic onboarding flow that uses **Gemini 3's image analysis** to extract all necessary traveler information from a photo of their ID or passport. This data is essential for booking flights and becomes the foundation of their traveler profile.
+After the user confirms their traveler profile, they'll proceed through a multi-step flow to:
+1. Select departure and destination airports (with auto-suggest)
+2. Pick travel dates
+3. Add fellow travelers (with option for different departure airports)
+4. Have Gemini AI search for the best flights and accommodations
+5. View an itemized receipt showing per-person costs
 
 ---
 
-## User Journey
+## User Flow
 
 ```text
-[Landing Page] 
+[ID Scan Complete] 
      |
-     | Click "Create a Trip"
+     | Click "Confirm & Continue"
      v
-[/create-trip] - ID Upload Screen
+[Step 2: Trip Details]
      |
-     | Upload/Take Photo of ID or Passport
+     | Where are you going? (destination airport)
+     | Where are you leaving from? (auto-detected, editable)
+     | When? (date range picker)
      v
-[Gemini 3 Vision Processing]
+[Step 3: Add Travelers]
      |
-     | Extract all traveler information
+     | Who's coming with you?
+     | - Add traveler (name + same airport or different)
+     | - Repeat for each person
      v
-[Review & Confirm Screen]
+[AI Search Processing]
      |
-     | User confirms/edits extracted data
+     | Gemini searches for flights & accommodations
+     | Animated "Finding the best deals..." state
      v
-[Next Step: Trip Details] (future)
+[Trip Summary / Receipt]
+     |
+     | Itemized breakdown per person
+     | Total trip cost
+     | "Confirm & Share" or "Edit Details"
 ```
-
----
-
-## What Information Will Be Extracted
-
-From an ID or Passport, Gemini 3 will extract:
-
-| Field | Purpose |
-|-------|---------|
-| Full Legal Name | Flight booking (must match exactly) |
-| First Name | Personalization |
-| Last Name | Flight booking |
-| Middle Name | Flight booking (if applicable) |
-| Date of Birth | Age verification, flight booking |
-| Document Number | Passport/ID number for international travel |
-| Document Type | Passport vs Driver's License vs ID |
-| Expiration Date | Ensure document is valid for travel |
-| Nationality/Country | International travel requirements |
-| Gender | Flight booking |
-| Issue Date | Document verification |
-| Place of Birth | Some international bookings require this |
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Create the Route Structure
-
-**File: `src/App.tsx`**
-
-Add new route for `/create-trip`
-
-### Step 2: Create the ID Upload Page
+### Step 1: Expand the Step Flow
 
 **File: `src/pages/CreateTrip.tsx`**
 
-A minimalistic, iMessage-inspired page with:
-- Clean white background with subtle glass effects
-- Step indicator (Step 1 of X)
-- Hero text: "Let's get you trip-ready"
-- Subtext explaining why we need their ID
-- Two upload options styled as iOS-like cards:
-  - Camera icon - "Take a Photo" (mobile-friendly)
-  - Upload icon - "Upload from Device"
-- Privacy reassurance text
-- File input (hidden, triggered by buttons)
-- Drag-and-drop zone for desktop
+Update the step type to include new steps:
+```typescript
+type Step = "upload" | "processing" | "review" | "trip-details" | "travelers" | "searching" | "summary";
+```
 
-### Step 3: Create the Edge Function for ID Processing
+After `handleConfirm` is called, transition to `"trip-details"` step instead of just showing a toast.
 
-**File: `supabase/functions/extract-id/index.ts`**
+### Step 2: Create Trip Details Component
+
+**File: `src/components/trip-wizard/TripDetailsStep.tsx`**
+
+A clean, minimalistic form with:
+- **Destination Input**: Autocomplete airport search using a local airport database (JSON-based, no external API needed)
+- **Origin Input**: Same autocomplete, pre-filled based on user's geolocation (browser Geolocation API)
+- **Date Range Picker**: Departure and return dates using existing Calendar component
+- **Continue Button**
+
+**Airport Autocomplete Approach**:
+- Use a bundled JSON file with major airports (~5000 airports)
+- Use Fuse.js for fuzzy search (already a pattern in similar libraries)
+- Display: "JFK - New York John F. Kennedy" format
+- Store IATA code for API calls
+
+### Step 3: Create Airport Data and Search
+
+**File: `src/data/airports.json`**
+
+A curated list of major airports with:
+```json
+{
+  "iata": "JFK",
+  "name": "John F. Kennedy International Airport",
+  "city": "New York",
+  "country": "United States",
+  "lat": 40.6413,
+  "lng": -73.7781
+}
+```
+
+**File: `src/lib/airportSearch.ts`**
+
+Functions for:
+- `searchAirports(query: string)` - Fuzzy search airports
+- `getAirportByIata(code: string)` - Get airport by IATA
+- `getNearestAirport(lat: number, lng: number)` - Find closest airport to coordinates
+- `getUserLocationAirport()` - Use browser geolocation to suggest departure airport
+
+### Step 4: Create Add Travelers Component
+
+**File: `src/components/trip-wizard/AddTravelersStep.tsx`**
+
+UI for adding fellow travelers:
+- Card showing the main traveler (from ID scan) as "organizer"
+- "Add Traveler" button to add more people
+- For each traveler:
+  - Name input
+  - Toggle: "Flying from same airport" (default on)
+  - If off, show origin airport selector
+- Visual list of all travelers with their departure airports
+- Continue button
+
+### Step 5: Create Trip Search State Type
+
+**File: `src/lib/tripTypes.ts`**
+
+Define the data structures:
+```typescript
+interface TripSearch {
+  organizer: TravelerInfo;
+  destination: Airport;
+  travelers: Traveler[];
+  departureDate: Date;
+  returnDate: Date;
+}
+
+interface Traveler {
+  id: string;
+  name: string;
+  origin: Airport;
+  isOrganizer: boolean;
+}
+
+interface Airport {
+  iata: string;
+  name: string;
+  city: string;
+  country: string;
+}
+
+interface TripResult {
+  flights: FlightOption[];
+  accommodations: AccommodationOption[];
+  perPersonCost: number;
+  totalCost: number;
+  breakdown: CostBreakdown[];
+}
+```
+
+### Step 6: Create AI Search Edge Function
+
+**File: `supabase/functions/search-trip/index.ts`**
 
 Edge function that:
-1. Receives base64-encoded image
-2. Sends to Gemini 3 with vision capabilities using `google/gemini-2.5-flash` (has multimodal/image support)
-3. Uses structured output (tool calling) to ensure consistent JSON response
-4. Returns extracted traveler information
-5. Handles errors gracefully (blurry image, wrong document type, etc.)
+1. Receives trip search parameters (destination, dates, travelers with origins)
+2. Uses Gemini 3 with web grounding to search for:
+   - Best flight prices for each traveler's route
+   - Accommodation options at the destination
+3. Returns structured results with pricing
 
-### Step 4: Create Processing State Components
+**Using Gemini's Web Grounding**:
+Since Gemini has access to Google Flights data through its training, we can prompt it to provide realistic flight estimates. For actual booking, we'd integrate real APIs later, but for MVP this gives users a realistic preview.
 
-**File: `src/components/IDProcessing.tsx`**
-
-Animated processing state showing:
-- Pulsing document icon
-- "Scanning your ID..." text
-- Subtle progress animation
-- Status updates as extraction happens
-
-### Step 5: Create Review/Confirm Screen
-
-**File: `src/components/TravelerReview.tsx`**
-
-After extraction, show:
-- All extracted fields in editable form
-- Any fields that couldn't be extracted highlighted
-- Photo thumbnail of their document
-- "Confirm" button to proceed
-- "Retake Photo" option if quality was poor
-
-### Step 6: Update config.toml
-
-**File: `supabase/config.toml`**
-
-Add the new edge function configuration.
-
----
-
-## Technical Details
-
-### Edge Function: `extract-id`
-
+**Tool Calling Schema**:
 ```typescript
-// Key implementation details:
-
-// 1. Use google/gemini-2.5-flash for image analysis (multimodal)
-// 2. Send image as base64 in the message content
-// 3. Use tool calling for structured output
-
-const tools = [{
+const searchTripTool = {
   type: "function",
   function: {
-    name: "extract_traveler_info",
-    description: "Extract traveler information from ID or passport image",
+    name: "compile_trip_results",
     parameters: {
       type: "object",
       properties: {
-        document_type: { type: "string", enum: ["passport", "drivers_license", "national_id", "unknown"] },
-        full_legal_name: { type: "string" },
-        first_name: { type: "string" },
-        middle_name: { type: "string" },
-        last_name: { type: "string" },
-        date_of_birth: { type: "string", description: "YYYY-MM-DD format" },
-        gender: { type: "string", enum: ["M", "F", "X", "unknown"] },
-        nationality: { type: "string" },
-        document_number: { type: "string" },
-        expiration_date: { type: "string", description: "YYYY-MM-DD format" },
-        issue_date: { type: "string" },
-        place_of_birth: { type: "string" },
-        issuing_country: { type: "string" },
-        confidence: { type: "string", enum: ["high", "medium", "low"] },
-        issues: { 
-          type: "array", 
-          items: { type: "string" },
-          description: "Any issues detected (blurry, glare, partial, etc.)"
-        }
-      },
-      required: ["document_type", "confidence"]
+        flights: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              traveler_name: { type: "string" },
+              origin: { type: "string" },
+              destination: { type: "string" },
+              outbound_price: { type: "number" },
+              return_price: { type: "number" },
+              airline: { type: "string" },
+              departure_time: { type: "string" },
+              arrival_time: { type: "string" }
+            }
+          }
+        },
+        accommodation: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            price_per_night: { type: "number" },
+            total_nights: { type: "number" },
+            rating: { type: "number" }
+          }
+        },
+        total_per_person: { type: "number" },
+        trip_total: { type: "number" }
+      }
     }
   }
-}];
+};
 ```
 
-### Image Handling
+### Step 7: Create Search Processing Animation
 
-- Accept JPEG, PNG, HEIC formats
-- Compress large images client-side before sending (max 4MB)
-- Convert to base64 for API transmission
-- Store image temporarily in memory (not persisted for privacy)
+**File: `src/components/trip-wizard/SearchingStep.tsx`**
 
-### UI Component Structure
+Animated loading state showing:
+- "Finding the best flights..." → "Comparing prices..." → "Calculating costs..."
+- Airplane animation or pulsing globe
+- Takes 5-10 seconds for AI to search and respond
 
-```text
-src/
-  pages/
-    CreateTrip.tsx           # Main page with upload UI
-  components/
-    id-scan/
-      IDUploadCard.tsx       # Upload option cards
-      IDProcessing.tsx       # Processing animation
-      TravelerReview.tsx     # Review extracted data
-      TravelerForm.tsx       # Editable form fields
-  lib/
-    idExtraction.ts          # API client for edge function
-```
+### Step 8: Create Trip Summary / Receipt Component
 
-### Styling Approach
+**File: `src/components/trip-wizard/TripSummaryStep.tsx`**
 
-Following the existing iMessage-inspired design:
-- Rounded corners (1.25rem / rounded-2xl)
-- Subtle shadows (`shadow-soft`)
-- Glass morphism for overlays
-- iOS blue primary color
-- Smooth spring animations with Framer Motion
-- Clean typography with SF Pro-like font stack
+Beautiful itemized receipt showing:
+- Destination header with image
+- Dates
+- **Per-traveler breakdown**:
+  - Traveler name
+  - Flight route (origin → destination)
+  - Flight cost (round trip)
+  - Share of accommodation
+  - **Subtotal for that person**
+- **Trip total**
+- **Share Link** button (for future: generate payment link)
+- **Edit** button to go back
+
+Styled like a modern receipt/invoice with clean typography.
+
+### Step 9: Create API Client
+
+**File: `src/lib/tripSearch.ts`**
+
+Client-side function to call the edge function and handle the response.
 
 ---
 
@@ -200,37 +246,98 @@ Following the existing iMessage-inspired design:
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/App.tsx` | Modify | Add `/create-trip` route |
-| `src/pages/CreateTrip.tsx` | Create | Main ID upload page |
-| `src/components/id-scan/IDUploadCard.tsx` | Create | Upload option buttons |
-| `src/components/id-scan/IDProcessing.tsx` | Create | Processing animation |
-| `src/components/id-scan/TravelerReview.tsx` | Create | Review/edit extracted data |
-| `src/components/id-scan/TravelerForm.tsx` | Create | Editable traveler fields |
-| `src/lib/idExtraction.ts` | Create | Edge function client |
-| `supabase/functions/extract-id/index.ts` | Create | Gemini 3 image extraction |
-| `supabase/config.toml` | Modify | Add extract-id function config |
+| `src/pages/CreateTrip.tsx` | Modify | Add new steps, state management for trip data |
+| `src/data/airports.json` | Create | Curated list of ~500 major airports |
+| `src/lib/airportSearch.ts` | Create | Airport search utilities with Fuse.js |
+| `src/lib/tripTypes.ts` | Create | TypeScript interfaces for trip data |
+| `src/lib/tripSearch.ts` | Create | API client for trip search |
+| `src/components/trip-wizard/TripDetailsStep.tsx` | Create | Destination, origin, dates form |
+| `src/components/trip-wizard/AirportAutocomplete.tsx` | Create | Reusable airport search input |
+| `src/components/trip-wizard/AddTravelersStep.tsx` | Create | Add fellow travelers UI |
+| `src/components/trip-wizard/TravelerCard.tsx` | Create | Individual traveler display card |
+| `src/components/trip-wizard/SearchingStep.tsx` | Create | AI search loading animation |
+| `src/components/trip-wizard/TripSummaryStep.tsx` | Create | Itemized receipt/summary |
+| `src/components/trip-wizard/CostBreakdown.tsx` | Create | Per-person cost breakdown card |
+| `supabase/functions/search-trip/index.ts` | Create | Gemini AI trip search function |
+| `supabase/config.toml` | Modify | Add search-trip function config |
 
 ---
 
-## Privacy & Security Considerations
+## UI/UX Details
 
-- Images are processed in-memory only
-- No ID images stored in database
-- Only extracted text data is retained
-- Clear messaging to users about data handling
-- HTTPS encryption for all transmissions
-- Consider adding option to manually enter info instead
+### Airport Autocomplete Behavior
+- Shows placeholder: "Where to?" or "Leaving from?"
+- On focus, show recent/popular airports
+- On type, fuzzy search through airport database
+- Results show: "JFK - New York, USA" format with IATA prominent
+- Geolocation button for origin to auto-detect nearest airport
+
+### Date Picker Behavior
+- Single date range picker (departure → return)
+- Minimum departure: tomorrow
+- Calendar shows 2 months
+- Mobile: fullscreen modal calendar
+
+### Add Travelers UX
+- Start with organizer card (from ID)
+- "Add Traveler" opens inline form
+- Clean card for each traveler with avatar placeholder
+- Swipe to remove on mobile, X button on desktop
+- Clear visual of different departure airports if applicable
+
+### Receipt/Summary Design
+- White card with subtle shadow
+- Destination banner image at top
+- Line items with clean dividers
+- Bold totals
+- Primary CTA: "Share Trip" or "Get Payment Link"
 
 ---
 
-## Future Steps (Not in This Plan)
+## Technical Notes
 
-After ID extraction is complete, the user journey continues:
-1. Trip destination selection
-2. Date picker
-3. Add fellow travelers
-4. Flight search
-5. Accommodation search
-6. Payment split setup
+### Geolocation for Origin Airport
+```typescript
+// In AirportAutocomplete or TripDetailsStep
+const detectNearestAirport = async () => {
+  if (!navigator.geolocation) return null;
+  
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nearest = findNearestAirport(
+          position.coords.latitude,
+          position.coords.longitude
+        );
+        resolve(nearest);
+      },
+      () => resolve(null)
+    );
+  });
+};
+```
 
-This plan focuses only on the ID extraction step as the foundation.
+### Airport Data Source
+We'll include a curated JSON of the top 500 airports globally. This keeps the bundle small (~50KB gzipped) while covering the vast majority of use cases.
+
+### Gemini Search Prompt Strategy
+The edge function will prompt Gemini with:
+- Specific dates and routes
+- Request for realistic price estimates
+- Structured output via tool calling
+- Instruction to provide airline names and approximate times
+
+Since we can't actually book through Gemini, this serves as a planning/estimation tool. Future integration could use real flight APIs (Amadeus, Skyscanner) for actual booking.
+
+---
+
+## Step Counter Update
+
+The header currently shows "Step 1 of 3". After this implementation:
+- Step 1: ID Upload/Review
+- Step 2: Trip Details (destination, dates)
+- Step 3: Add Travelers
+- Step 4: Summary/Receipt
+
+Update the step counter to reflect current position.
+
