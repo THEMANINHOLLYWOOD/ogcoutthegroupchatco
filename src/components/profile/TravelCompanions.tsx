@@ -129,7 +129,7 @@ export function TravelCompanions() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
               <AnimatePresence mode="popLayout">
                 {companions.map((companion, index) => (
                   <motion.div
@@ -138,9 +138,10 @@ export function TravelCompanions() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: index * 0.05, type: "spring", stiffness: 300, damping: 25 }}
-                    className="bg-card border border-border rounded-2xl p-4 relative group"
+                    className="bg-card border border-border rounded-2xl p-4 relative"
                   >
-                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* More menu - always visible on mobile */}
+                    <div className="absolute top-3 right-3 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">

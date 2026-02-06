@@ -75,21 +75,21 @@ export const PersonalInfoForm = ({ email, phone, fullName }: PersonalInfoFormPro
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-      className="space-y-6"
+      className="space-y-6 pb-safe"
     >
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="full_name">Full Name</Label>
+          <Label htmlFor="full_name" className="text-sm font-medium">Full Name</Label>
           <Input
             id="full_name"
             placeholder="John Doe"
-            className="h-11 rounded-xl"
+            className="h-12 rounded-xl text-base"
             {...form.register('full_name')}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email" className="text-sm font-medium">Email</Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -97,27 +97,27 @@ export const PersonalInfoForm = ({ email, phone, fullName }: PersonalInfoFormPro
               type="email"
               value={email}
               disabled
-              className="pl-10 h-11 rounded-xl bg-muted"
+              className="pl-10 h-12 rounded-xl bg-muted text-base"
             />
           </div>
           <p className="text-xs text-muted-foreground">Email cannot be changed</p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="phone">Phone Number</Label>
+          <Label htmlFor="phone" className="text-sm font-medium">Phone Number</Label>
           <div className="relative">
             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               id="phone"
               type="tel"
               placeholder="+1 (555) 000-0000"
-              className="pl-10 h-11 rounded-xl"
+              className="pl-10 h-12 rounded-xl text-base"
               {...form.register('phone')}
             />
           </div>
         </div>
 
-        <Button type="submit" className="w-full h-11 rounded-xl" disabled={isSaving}>
+        <Button type="submit" className="w-full h-12 rounded-xl text-base font-medium" disabled={isSaving}>
           {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
           Save Changes
         </Button>
