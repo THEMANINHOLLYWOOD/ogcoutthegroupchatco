@@ -128,7 +128,15 @@ export default function TripView() {
           </h2>
 
           {trip.itinerary_status === "complete" && trip.itinerary ? (
-            <ItineraryView itinerary={trip.itinerary} />
+            <ItineraryView 
+              itinerary={trip.itinerary}
+              tripId={trip.id}
+              destinationCity={trip.destination_city}
+              destinationCountry={trip.destination_country}
+              onItineraryUpdate={(updatedItinerary) => {
+                setTrip(prev => prev ? { ...prev, itinerary: updatedItinerary } : null);
+              }}
+            />
           ) : trip.itinerary_status === "failed" ? (
             <div className="p-6 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
               <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
@@ -154,6 +162,8 @@ export default function TripView() {
             accommodation={trip.accommodation}
             totalPerPerson={trip.total_per_person}
             tripTotal={trip.trip_total}
+            itinerary={trip.itinerary}
+            travelerCount={trip.travelers.length}
           />
         </section>
 
