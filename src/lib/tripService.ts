@@ -268,6 +268,58 @@ export function calculateSelectedActivitiesCost(
 
 export function getTotalAvailableActivitiesCost(itinerary: Itinerary | null): number {
   if (!itinerary?.days) return 0;
+  return calculateItineraryCost(itinerary);
+}
+
+export async function fetchUserTrips(): Promise<{ success: boolean; trips?: SavedTrip[]; error?: string }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: "You must be logged in to view trips" };
+    }
+
+    const { data, error } = await supabase
+      .from("trips")
+      .select("*")
+      .eq("organizer_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching user trips:", error);
+      return { success: false, error: error.message };
+    }
+
+    const trips: SavedTrip[] = (data || []).map((rawData: Record<string, unknown>) => ({
+      id: rawData.id as string,
+      organizer_id: rawData.organizer_id as string | null,
+      organizer_name: rawData.organizer_name as string,
+      destination_city: rawData.destination_city as string,
+      destination_country: rawData.destination_country as string,
+      destination_iata: rawData.destination_iata as string,
+      departure_date: rawData.departure_date as string,
+      return_date: rawData.return_date as string,
+      travelers: rawData.travelers as TravelerCost[],
+      flights: rawData.flights as FlightOption[],
+      accommodation: rawData.accommodation as AccommodationOption | null,
+      cost_breakdown: rawData.cost_breakdown as TravelerCost[],
+      total_per_person: Number(rawData.total_per_person),
+      trip_total: Number(rawData.trip_total),
+      itinerary: rawData.itinerary as Itinerary | null,
+      itinerary_status: rawData.itinerary_status as SavedTrip["itinerary_status"],
+      share_code: rawData.share_code as string,
+      share_image_url: rawData.share_image_url as string | null,
+      link_created_at: rawData.link_created_at as string | null,
+      link_expires_at: rawData.link_expires_at as string | null,
+      created_at: rawData.created_at as string,
+      updated_at: rawData.updated_at as string,
+    }));
+
+    return { success: true, trips };
+  } catch (err) {
+    console.error("Exception fetching user trips:", err);
+    return { success: false, error: "Failed to fetch trips" };
+  }
 }
 
 export async function addActivityToItinerary(
