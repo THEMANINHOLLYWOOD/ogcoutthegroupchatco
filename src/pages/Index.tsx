@@ -349,29 +349,29 @@ const Index = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4">
+      <section className="py-16 sm:py-20 px-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           className="container mx-auto"
         >
-          <div className="relative bg-gradient-to-br from-primary to-primary/80 rounded-3xl p-8 sm:p-12 text-center overflow-hidden">
-            {/* Decorative bubbles */}
-            <div className="absolute top-4 left-8 w-16 h-16 bg-white/10 rounded-full blur-xl" />
-            <div className="absolute bottom-8 right-12 w-24 h-24 bg-white/10 rounded-full blur-xl" />
+          <div className="relative bg-gradient-to-br from-primary to-primary/80 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-12 text-center overflow-hidden">
+            {/* Decorative bubbles - hidden on mobile */}
+            <div className="hidden sm:block absolute top-4 left-8 w-16 h-16 bg-white/10 rounded-full blur-xl" />
+            <div className="hidden sm:block absolute bottom-8 right-12 w-24 h-24 bg-white/10 rounded-full blur-xl" />
             
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-primary-foreground mb-4 relative">
+            <h2 className="text-xl sm:text-2xl lg:text-4xl font-bold text-primary-foreground mb-3 sm:mb-4 relative">
               Ready to get out the group chat?
             </h2>
-            <p className="text-primary-foreground/80 mb-8 max-w-lg mx-auto relative">
+            <p className="text-sm sm:text-base text-primary-foreground/80 mb-6 sm:mb-8 max-w-lg mx-auto relative">
               Stop endless back-and-forth. Start your first trip today.
             </p>
             <Button 
               asChild
               size="lg" 
               variant="secondary" 
-              className="rounded-full text-base px-8 h-12 shadow-soft relative"
+              className="rounded-full text-sm sm:text-base px-6 sm:px-8 h-11 sm:h-12 shadow-soft relative"
             >
               <Link to="/create-trip">
                 Create Your First Trip
