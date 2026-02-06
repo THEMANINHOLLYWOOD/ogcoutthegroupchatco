@@ -1,89 +1,206 @@
 
 
-# Plan: Fix Trips Page 404 Issue
+# Plan: Preserve Trip Data for New Users During Sign-In Flow
 
-## Problem Identified
+## Problem Analysis
 
-The `/trips` route is showing a 404 "Page Not Found" error even though all the necessary files exist and are correctly configured. The console confirms: `404 Error: User attempted to access non-existent route: /trips`
+When a new user creates a trip and then signs in with Google:
 
-## Current State Analysis
+1. User completes trip creation wizard (4 steps)
+2. Clicks "Share Trip" → trip is saved to database (without `organizer_id`)
+3. Lands on TripView page with "Create Link" button
+4. Clicks "Create Link" → redirected to `/auth?redirect=/trip/{tripId}/claim`
+5. Signs in with Google OAuth
+6. **Bug**: Redirected to `/` instead of `/trip/{tripId}/claim`
+7. Trip is orphaned in database, user loses their progress
 
-All required files are already in place and correctly implemented:
+**Root Causes:**
 
-| File | Status | Contents |
-|------|--------|----------|
-| `src/pages/Trips.tsx` | Exists | Full page with loading, empty, error states |
-| `src/components/trip/TripCard.tsx` | Exists | Status badges, date formatting, links |
-| `src/App.tsx` | Correct | Route `/trips` defined with ProtectedRoute |
-| `src/lib/tripService.ts` | Correct | `fetchUserTrips()` function implemented |
+| Issue | Location | Current Behavior |
+|-------|----------|------------------|
+| OAuth ignores redirect param | `useAuth.tsx` | `redirect_uri: window.location.origin` always returns to `/` |
+| Auth page ignores redirect param | `Auth.tsx` | Always navigates to `/` after sign-in |
+| No session persistence | OAuth flow | Google OAuth loses query params during redirect |
 
-## Root Cause
+---
 
-The files were created in a previous edit session but may not have been fully saved or deployed. This is a sync/deployment issue, not a code issue.
+## Solution Design
 
-## Solution
+### Approach: Store redirect URL in sessionStorage before OAuth
 
-Re-save the existing files to ensure they are properly deployed:
+Since OAuth redirects lose query parameters, we need to persist the intended redirect URL before initiating OAuth:
 
-### Step 1: Re-save src/App.tsx
-
-Ensure the `/trips` route import and route definition are properly saved:
-
-```typescript
-import Trips from "./pages/Trips";
-
-// In Routes:
-<Route
-  path="/trips"
-  element={
-    <ProtectedRoute>
-      <Trips />
-    </ProtectedRoute>
-  }
-/>
+```text
+[User clicks "Create Link"]
+        |
+        v
+[Navigates to /auth?redirect=/trip/xyz/claim]
+        |
+        v
+[Auth page stores redirect URL in sessionStorage]
+        |
+        v
+[User clicks "Continue with Google"]
+        |
+        v
+[Google OAuth completes, redirects to origin]
+        |
+        v
+[onAuthStateChange fires, user detected]
+        |
+        v
+[Auth page checks sessionStorage for pending redirect]
+        |
+        v
+[Navigates to /trip/xyz/claim]
+        |
+        v
+[ClaimTrip page claims trip, sets organizer_id]
+        |
+        v
+[Navigates to /trip/xyz/dashboard]
 ```
 
-### Step 2: Re-save src/pages/Trips.tsx
+---
 
-The complete Trips page component with:
-- Header with back button and "+" new trip button
-- Loading skeleton state
-- Error state with retry
-- Empty state with globe icon and CTA
-- Trip list with animated cards
-- Calls `fetchUserTrips()` on mount
+## Implementation Steps
 
-### Step 3: Re-save src/components/trip/TripCard.tsx
+### Step 1: Update Auth Page to Handle Redirect Parameter
 
-The trip summary card with:
-- Destination display (city, country)
-- Date range formatting
-- Traveler count
-- Status badge (Draft, Expired, Xh remaining, Confirmed)
-- Link to dashboard
+**File: `src/pages/Auth.tsx`**
 
-### Step 4: Verify src/lib/tripService.ts
+Modifications:
+- Read `redirect` query parameter on mount
+- Store it in sessionStorage before any OAuth action
+- On successful authentication, check sessionStorage for redirect
+- Navigate to stored redirect URL (or `/` as fallback)
+- Clear the stored redirect after use
 
-The `fetchUserTrips` function that:
-- Gets current authenticated user
-- Queries trips where `organizer_id = user.id`
-- Returns mapped `SavedTrip[]` array
+```typescript
+// Read redirect param
+const [searchParams] = useSearchParams();
+const redirectTo = searchParams.get('redirect');
 
-## Files to Re-save
+// Store before OAuth
+useEffect(() => {
+  if (redirectTo) {
+    sessionStorage.setItem('authRedirect', redirectTo);
+  }
+}, [redirectTo]);
 
-| File | Action |
-|------|--------|
-| `src/App.tsx` | Re-save to ensure route is registered |
-| `src/pages/Trips.tsx` | Re-save to ensure page component is available |
-| `src/components/trip/TripCard.tsx` | Re-save for trip card component |
-| `src/lib/tripService.ts` | Verify fetchUserTrips exists |
+// On user detected
+useEffect(() => {
+  if (user) {
+    const storedRedirect = sessionStorage.getItem('authRedirect');
+    sessionStorage.removeItem('authRedirect');
+    navigate(storedRedirect || '/', { replace: true });
+  }
+}, [user, navigate]);
+```
 
-## Expected Result
+### Step 2: No Changes Needed to useAuth
 
-After re-saving these files, navigating to `/trips` will:
-1. Check if user is authenticated (ProtectedRoute)
-2. If not logged in, redirect to `/auth`
-3. If logged in, show the Trips page
-4. Load user's trips from database
-5. Display trip cards or empty state
+The `signInWithGoogle` function correctly uses `window.location.origin` as the OAuth redirect. The Auth page will handle the final navigation using sessionStorage.
+
+### Step 3: No Changes Needed to ClaimTrip
+
+The ClaimTrip page already:
+- Checks for authentication
+- Calls `claimTrip()` to set `organizer_id`
+- Navigates to dashboard on success
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/pages/Auth.tsx` | Add useSearchParams, store redirect in sessionStorage, navigate to stored redirect |
+
+---
+
+## Technical Details
+
+### Updated Auth.tsx Logic
+
+```typescript
+import { useSearchParams } from 'react-router-dom';
+
+const Auth = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user, ... } = useAuth();
+  
+  // Get redirect param
+  const redirectParam = searchParams.get('redirect');
+  
+  // Store redirect on mount (before OAuth)
+  useEffect(() => {
+    if (redirectParam) {
+      sessionStorage.setItem('auth_redirect', redirectParam);
+    }
+  }, [redirectParam]);
+  
+  // Handle successful auth
+  useEffect(() => {
+    if (user) {
+      const storedRedirect = sessionStorage.getItem('auth_redirect');
+      sessionStorage.removeItem('auth_redirect');
+      
+      // Validate redirect is internal path
+      const finalRedirect = storedRedirect?.startsWith('/') 
+        ? storedRedirect 
+        : '/';
+        
+      navigate(finalRedirect, { replace: true });
+    }
+  }, [user, navigate]);
+  
+  // ... rest of component
+};
+```
+
+### Security Considerations
+
+- Only allow redirects to internal paths (starting with `/`)
+- Reject absolute URLs to prevent open redirect vulnerabilities
+- Clear sessionStorage after use
+
+---
+
+## User Flow After Fix
+
+```text
+1. User creates trip → lands on TripView
+2. Clicks "Create Link" 
+3. Goes to /auth?redirect=/trip/abc/claim
+4. Auth page stores "/trip/abc/claim" in sessionStorage
+5. User clicks "Continue with Google"
+6. OAuth completes, returns to /auth (or /)
+7. Auth page detects user, reads sessionStorage
+8. Navigates to /trip/abc/claim
+9. ClaimTrip sets organizer_id and navigates to dashboard
+10. Trip now appears in "My Trips"
+```
+
+---
+
+## Edge Cases
+
+| Scenario | Handling |
+|----------|----------|
+| User navigates to /auth directly (no redirect) | Falls back to `/` |
+| OAuth fails | User stays on auth page, sessionStorage preserved for retry |
+| User manually goes to /auth later | No stored redirect, goes to `/` |
+| Malicious redirect param | Validate path starts with `/`, reject URLs |
+| Email/password login | Same flow works, redirect honored |
+
+---
+
+## Summary
+
+**Single file change** to `src/pages/Auth.tsx`:
+- Store redirect param in sessionStorage before OAuth
+- After authentication, navigate to stored redirect or fallback to `/`
+- This preserves the user's intent across the OAuth redirect flow
 
