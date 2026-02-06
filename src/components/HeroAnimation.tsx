@@ -85,13 +85,8 @@ export const HeroAnimation = () => {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-foreground rounded-b-2xl z-10" />
 
         {/* Status bar */}
-        <div className="h-12 bg-card flex items-end justify-between px-8 pb-1">
+        <div className="h-12 bg-card flex items-end justify-center px-8 pb-1">
           <span className="text-xs font-medium">9:41</span>
-          <div className="flex gap-1">
-            <div className="w-4 h-2 bg-foreground rounded-sm" />
-            <div className="w-4 h-2 bg-foreground rounded-sm" />
-            <div className="w-6 h-3 bg-foreground rounded-sm" />
-          </div>
         </div>
 
         {/* Chat header */}
