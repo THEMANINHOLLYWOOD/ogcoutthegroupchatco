@@ -1,364 +1,191 @@
 
+# Plan: Fix Mobile Home Page UI Issues
 
-# Plan: Dynamic Per-Share Image Generation
+## Issues Identified
 
-## Overview
+### Issue 1: CTA Section "Ready to get out the group chat?"
+Based on the screenshot, the bottom CTA card has several mobile problems:
 
-Transform the sharing experience so that each time a user clicks "Share with Friends", a fresh AI-generated image is created using:
-1. **The sharer's profile picture** as the primary face reference
-2. **The trip destination** as the backdrop
-3. **On-demand generation** each share action triggers a new image (with loading state)
+| Problem | Current | Impact |
+|---------|---------|--------|
+| Tight padding | `p-8 sm:p-12` | Text/button cramped against rounded edges |
+| Aggressive corners | `rounded-3xl` | Clips content on small screens |
+| Button too wide | Full content width | Hard to read on narrow viewports |
+| Missing bottom margin | None | Card feels cramped at bottom of viewport |
 
-This replaces the current one-time generation at claim with a per-share dynamic flow.
+### Issue 2: Status Bar Black Rectangles
+In the HeroAnimation iPhone frame, lines 91-93:
+```tsx
+<div className="w-4 h-2 bg-foreground rounded-sm" />
+<div className="w-4 h-2 bg-foreground rounded-sm" />
+<div className="w-6 h-3 bg-foreground rounded-sm" />
+```
+These are meant to be signal/wifi/battery icons but look like ugly black blocks.
 
 ---
 
-## Current State Analysis
+## Solution Design
 
-| Aspect | Current Behavior |
-|--------|------------------|
-| Image Generation | Once at trip claim (background) |
-| Image Storage | `share_image_url` on trip record |
-| Share Flow | Uses pre-generated image if exists |
-| User Context | Uses all travelers' avatars from trip creation |
-| Trigger | `claimTrip()` calls edge function |
+### Fix 1: Optimize CTA Section for Mobile
 
-### Problem
-The current approach generates one static image at claim time. If the organizer's profile changes, or if different users want to share with their own face, the image doesn't adapt.
+**File: `src/pages/Index.tsx`**
 
----
+Update the CTA section styling:
+- Reduce corner radius on mobile: `rounded-2xl sm:rounded-3xl`
+- Increase padding: `p-6 sm:p-8 lg:p-12`
+- Adjust horizontal margin for mobile: `mx-2 sm:mx-0`
+- Make heading responsive: `text-xl sm:text-2xl lg:text-4xl`
+- Constrain button width on mobile: `w-auto px-6 sm:px-8`
 
-## Solution Architecture
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    DYNAMIC SHARE FLOW                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  User clicks [Share with Friends]                               │
-│       │                                                         │
-│       ▼                                                         │
-│  [Generate Personal Share Image]  ◄── Loading spinner           │
-│       │                                                         │
-│       ├──▶ Edge function receives:                              │
-│       │    • tripId                                             │
-│       │    • userId (current user)                              │
-│       │    • destinationCity/Country                            │
-│       │                                                         │
-│       ├──▶ Fetch user's avatar_url from profiles                │
-│       │                                                         │
-│       ├──▶ Generate image with Nano Banana:                     │
-│       │    • User's face as reference                           │
-│       │    • Destination landmark backdrop                      │
-│       │                                                         │
-│       ├──▶ Upload to storage: share-images/{tripId}/{userId}.png│
-│       │                                                         │
-│       └──▶ Return imageUrl to client                            │
-│                                                                 │
-│  Native Share Dialog opens with fresh image                     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Implementation Steps
-
-### Step 1: Update Edge Function for Per-User Generation
-
-**File: `supabase/functions/generate-share-image/index.ts`**
-
-Modify to accept `userId` and generate personalized images:
-
-```typescript
-interface ShareImageRequest {
-  tripId: string;
-  userId?: string;              // Current user requesting share
-  destinationCity: string;
-  destinationCountry: string;
-  travelers?: TravelerData[];   // Fallback for legacy calls
-}
-
-// In handler:
-let avatarUrl: string | null = null;
-
-// If userId provided, fetch their profile
-if (userId) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("avatar_url, full_name")
-    .eq("id", userId)
-    .single();
-  
-  avatarUrl = profile?.avatar_url || null;
-}
-
-// Generate prompt with single user focus
-const prompt = avatarUrl 
-  ? `Ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
-     Show a happy traveler enjoying a famous landmark, golden hour lighting.
-     Use the reference photo to create a realistic depiction of this person.
-     Professional Instagram-worthy travel photography, 16:9 aspect ratio.`
-  : `Ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
-     Show a happy traveler at a famous landmark, golden hour, vibrant colors.
-     Professional travel photography, Instagram-worthy, 16:9 aspect ratio.`;
-
-// Store per-user: share-images/{tripId}/{userId}.png
-const fileName = userId 
-  ? `share-images/${tripId}/${userId}.png`
-  : `share-images/${tripId}.png`;
-```
-
-### Step 2: Create Generate Share Image Service Function
-
-**File: `src/lib/tripService.ts`**
-
-Add new function to trigger on-demand generation:
-
-```typescript
-export async function generatePersonalShareImage(
-  tripId: string,
-  destinationCity: string,
-  destinationCountry: string
-): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    const response = await supabase.functions.invoke("generate-share-image", {
-      body: {
-        tripId,
-        userId: user?.id,
-        destinationCity,
-        destinationCountry,
-      },
-    });
-
-    if (response.error) {
-      return { success: false, error: response.error.message };
-    }
-
-    const data = response.data as { success: boolean; imageUrl?: string; error?: string };
-    return data;
-  } catch (err) {
-    console.error("Error generating share image:", err);
-    return { success: false, error: "Failed to generate image" };
-  }
-}
-```
-
-### Step 3: Update ShareButton Component
-
-**File: `src/components/trip/ShareButton.tsx`**
-
-Add loading state and trigger generation before sharing:
-
-```typescript
-interface ShareButtonProps {
-  tripId: string;
-  shareCode: string;
-  isClaimed?: boolean;
-  destinationCity: string;    // NEW
-  destinationCountry: string; // NEW
-}
-
-export function ShareButton({ 
-  tripId, 
-  shareCode, 
-  isClaimed = false,
-  destinationCity,
-  destinationCountry,
-}: ShareButtonProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
-
-  const handleNativeShare = async () => {
-    // Show generating state
-    setIsGenerating(true);
-
-    try {
-      // Generate fresh personal share image
-      const result = await generatePersonalShareImage(
-        tripId,
-        destinationCity,
-        destinationCountry
-      );
-
-      if (result.success && result.imageUrl) {
-        setGeneratedImageUrl(result.imageUrl);
-      }
-
-      // Proceed with share (with or without image)
-      if (navigator.share) {
-        await navigator.share({
-          title: `Trip to ${destinationCity}!`,
-          text: `Join us on this amazing adventure to ${destinationCity}! Use code: ${shareCode}`,
-          url: shareUrl,
-        });
-      } else {
-        handleCopyLink();
-      }
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        handleCopyLink();
-      }
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // Button with loading state
-  <Button
-    onClick={handleNativeShare}
-    disabled={isGenerating}
-    className="w-full h-11 sm:h-12 rounded-xl"
-  >
-    {isGenerating ? (
-      <>
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        Creating your share image...
-      </>
-    ) : (
-      <>
-        <Share className="w-4 h-4 mr-2" />
-        Share with Friends
-      </>
-    )}
-  </Button>
-}
-```
-
-### Step 4: Update ShareButton Props in Parent Components
-
-**Files to update:**
-- `src/pages/TripView.tsx`
-- `src/pages/TripDashboard.tsx`
-
-Pass destination info to ShareButton:
-
-```typescript
-<ShareButton 
-  tripId={trip.id} 
-  shareCode={trip.share_code} 
-  isClaimed={!!trip.organizer_id}
-  destinationCity={trip.destination_city}
-  destinationCountry={trip.destination_country}
-/>
-```
-
-### Step 5: Add Image Preview (Optional Enhancement)
-
-Show a quick preview of the generated image before sharing:
-
-```typescript
-// After generation succeeds, show mini preview
-{generatedImageUrl && (
+```tsx
+{/* CTA Section */}
+<section className="py-16 sm:py-20 px-4">
   <motion.div
     initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    className="rounded-xl overflow-hidden mb-3"
+    whileInView={{ opacity: 1, scale: 1 }}
+    viewport={{ once: true }}
+    className="container mx-auto"
   >
-    <img 
-      src={generatedImageUrl} 
-      alt="Your share preview"
-      className="w-full aspect-video object-cover"
-    />
+    <div className="relative bg-gradient-to-br from-primary to-primary/80 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-12 text-center overflow-hidden mx-2 sm:mx-0">
+      {/* Decorative bubbles - remove on mobile for cleaner look */}
+      <div className="hidden sm:block absolute top-4 left-8 w-16 h-16 bg-white/10 rounded-full blur-xl" />
+      <div className="hidden sm:block absolute bottom-8 right-12 w-24 h-24 bg-white/10 rounded-full blur-xl" />
+      
+      <h2 className="text-xl sm:text-2xl lg:text-4xl font-bold text-primary-foreground mb-3 sm:mb-4 relative">
+        Ready to get out the group chat?
+      </h2>
+      <p className="text-sm sm:text-base text-primary-foreground/80 mb-6 sm:mb-8 max-w-lg mx-auto relative">
+        Stop endless back-and-forth. Start your first trip today.
+      </p>
+      <Button 
+        asChild
+        size="lg" 
+        variant="secondary" 
+        className="rounded-full text-sm sm:text-base px-6 sm:px-8 h-11 sm:h-12 shadow-soft relative"
+      >
+        <Link to="/create-trip">
+          Create Your First Trip
+          <ArrowRight className="ml-2 w-4 h-4" />
+        </Link>
+      </Button>
+    </div>
   </motion.div>
-)}
+</section>
+```
+
+### Fix 2: Remove Black Status Bar Icons
+
+**File: `src/components/HeroAnimation.tsx`**
+
+Remove the status bar signal/battery indicators completely for a cleaner look:
+
+```tsx
+{/* Status bar */}
+<div className="h-12 bg-card flex items-end justify-center px-8 pb-1">
+  <span className="text-xs font-medium">9:41</span>
+</div>
+```
+
+Alternatively, if some status elements are desired, use subtle muted colors instead of black:
+
+```tsx
+{/* Status bar - cleaner minimal version */}
+<div className="h-12 bg-card flex items-end justify-between px-8 pb-1">
+  <span className="text-xs font-medium">9:41</span>
+  {/* Optional: subtle icons */}
+  <div className="flex items-center gap-1 text-muted-foreground">
+    <svg className="w-4 h-3" viewBox="0 0 16 12" fill="currentColor">
+      {/* Battery icon - minimal */}
+      <rect x="0" y="2" width="13" height="8" rx="2" stroke="currentColor" strokeWidth="1" fill="none"/>
+      <rect x="2" y="4" width="8" height="4" rx="1" fill="currentColor"/>
+      <rect x="13" y="4" width="2" height="4" rx="0.5" fill="currentColor"/>
+    </svg>
+  </div>
+</div>
 ```
 
 ---
 
 ## Files to Modify
 
-| File | Action | Description |
-|------|--------|-------------|
-| `supabase/functions/generate-share-image/index.ts` | Modify | Accept userId, per-user storage |
-| `src/lib/tripService.ts` | Modify | Add generatePersonalShareImage function |
-| `src/components/trip/ShareButton.tsx` | Modify | Loading state, trigger generation on share |
-| `src/pages/TripView.tsx` | Modify | Pass destination to ShareButton |
-| `src/pages/TripDashboard.tsx` | Modify | Pass destination to ShareButton |
+| File | Changes |
+|------|---------|
+| `src/pages/Index.tsx` | CTA section mobile optimization |
+| `src/components/HeroAnimation.tsx` | Remove black status bar elements |
 
 ---
 
-## Technical Details
+## Visual Result
 
-### Storage Structure
+### CTA Section - Before vs After
 
 ```text
-travel-media/
-└── share-images/
-    └── {tripId}/
-        ├── {userId1}.png   ← User 1's personalized image
-        ├── {userId2}.png   ← User 2's personalized image
-        └── default.png     ← Fallback for non-logged-in users
+BEFORE (Mobile):
+┌──────────────────────────────────────────┐
+│ ┌────────────────────────────────────┐  │
+│ │  Ready to get out                  │  │
+│ │  the group chat?                   │  │
+│ │                                    │  │
+│ │  Stop endless back-and-forth...   │  │
+│ │                                    │  │
+│ │  ┌──────────────────────────────┐  │  │
+│ │  │ Create Your First Trip    → │  │  │
+│ │  └──────────────────────────────┘  │  │
+│ └────────────────────────────────────┘  │
+└──────────────────────────────────────────┘
+        ^ Cramped, aggressive corners
+
+AFTER (Mobile):
+┌──────────────────────────────────────────┐
+│                                          │
+│  ┌────────────────────────────────────┐  │
+│  │                                    │  │
+│  │   Ready to get out                 │  │
+│  │   the group chat?                  │  │
+│  │                                    │  │
+│  │   Stop endless back-and-forth...   │  │
+│  │                                    │  │
+│  │     ┌──────────────────────┐       │  │
+│  │     │ Create First Trip → │       │  │
+│  │     └──────────────────────┘       │  │
+│  │                                    │  │
+│  └────────────────────────────────────┘  │
+│                                          │
+└──────────────────────────────────────────┘
+        ^ Better spacing, softer corners
 ```
 
-### Edge Function Flow
+### iPhone Frame - Before vs After
 
 ```text
-1. Receive { tripId, userId, destinationCity, destinationCountry }
-2. If userId → fetch profiles.avatar_url
-3. Build prompt with reference photo (if avatar exists)
-4. Call Nano Banana with multi-modal content
-5. Upload to storage with user-specific path
-6. Return { success: true, imageUrl }
-```
+BEFORE:
+┌────────────────────────────────────┐
+│          ████████████              │ ← Notch
+│   9:41              ■■ ■■ ■■■      │ ← Ugly black blocks
+│────────────────────────────────────│
+│  Wordle 🟩                         │
+...
 
-### Caching Strategy
-
-To avoid regenerating on every share:
-- Check if image already exists for user: `share-images/${tripId}/${userId}.png`
-- If exists and recent (< 24 hours), return cached URL
-- Otherwise, regenerate
-
-```typescript
-// Check for existing image
-const { data: existingImage } = await supabase.storage
-  .from("travel-media")
-  .list(`share-images/${tripId}`, {
-    search: `${userId}.png`
-  });
-
-if (existingImage?.length > 0) {
-  // Return cached image
-  const { data: urlData } = supabase.storage
-    .from("travel-media")
-    .getPublicUrl(`share-images/${tripId}/${userId}.png`);
-  return { success: true, imageUrl: urlData.publicUrl };
-}
+AFTER:
+┌────────────────────────────────────┐
+│          ████████████              │ ← Notch
+│              9:41                  │ ← Clean, minimal
+│────────────────────────────────────│
+│  Wordle 🟩                         │
+...
 ```
 
 ---
 
-## User Experience Flow
+## Responsive Specifications
 
-```text
-1. User on trip dashboard/view clicks "Share with Friends"
-2. Button shows "Creating your share image..." with spinner
-3. Edge function generates personalized image (2-5 seconds)
-4. Native share sheet opens with the trip link
-5. When shared to iMessage/WhatsApp, link preview shows the AI image
-6. Subsequent shares reuse cached image (instant)
-```
+### CTA Card
 
----
-
-## Animation Specifications
-
-| Element | Animation | Duration |
-|---------|-----------|----------|
-| Button loading | Spin + text change | Continuous |
-| Image preview | Scale spring | 200ms |
-| Button re-enable | Fade | 150ms |
-
----
-
-## Fallback Behavior
-
-| Scenario | Behavior |
-|----------|----------|
-| User not logged in | Generate generic destination image |
-| User has no avatar | Generate without face reference |
-| Generation fails | Share anyway without custom image |
-| Slow connection | 10 second timeout, then share without image |
-
+| Property | Mobile | sm+ | lg+ |
+|----------|--------|-----|-----|
+| Padding | `p-6` | `p-8` | `p-12` |
+| Border radius | `rounded-2xl` | `rounded-3xl` | `rounded-3xl` |
+| Heading size | `text-xl` | `text-2xl` | `text-4xl` |
+| Body text | `text-sm` | `text-base` | `text-base` |
+| Button height | `h-11` | `h-12` | `h-12` |
+| Decorative bubbles | Hidden | Visible | Visible |
