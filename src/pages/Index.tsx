@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown, User, LogOut } from "lucide-react";
+import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown, User, LogOut, Map } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -61,21 +61,28 @@ const Index = () => {
         transition={{ duration: 0.5 }}
         className="fixed top-0 left-0 right-0 z-50 glass"
       >
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="font-semibold text-lg">Out the Group Chat</span>
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+          {/* Brand - responsive text */}
+          <Link to="/" className="flex items-center gap-2 shrink-0">
+            <span className="font-semibold text-lg">
+              <span className="sm:hidden">OTGC</span>
+              <span className="hidden sm:inline">Out the Group Chat</span>
+            </span>
           </Link>
-          <div className="flex items-center gap-3">
+          
+          {/* Right side actions */}
+          <div className="flex items-center gap-2 sm:gap-3">
             {user ? (
               <>
+                {/* Avatar dropdown - larger tap target */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="flex items-center gap-2"
+                      className="flex items-center justify-center w-10 h-10 rounded-full -m-1"
                     >
-                      <Avatar className="w-8 h-8">
+                      <Avatar className="w-9 h-9 sm:w-8 sm:h-8">
                         <AvatarImage src={profile?.avatar_url || undefined} />
                         <AvatarFallback className="text-xs bg-primary/10 text-primary">
                           {initials}
@@ -88,30 +95,51 @@ const Index = () => {
                       <User className="w-4 h-4 mr-2" />
                       Profile
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/trips')}>
+                      <Map className="w-4 h-4 mr-2" />
+                      My Trips
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleSignOut}>
                       <LogOut className="w-4 h-4 mr-2" />
                       Sign Out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="ghost" size="sm" asChild>
+                
+                {/* Trips link - icon on mobile, text on desktop */}
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  asChild 
+                  className="sm:hidden h-10 w-10 rounded-full"
+                >
+                  <Link to="/trips">
+                    <Map className="w-5 h-5" />
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" asChild className="hidden sm:flex h-10">
                   <Link to="/trips">Trips</Link>
                 </Button>
               </>
             ) : (
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="ghost" size="sm" asChild className="h-10">
                 <Link to="/auth">Sign In</Link>
               </Button>
             )}
-            <Button size="sm" className="rounded-full" asChild>
-              <Link to="/create-trip">Getaway</Link>
+            
+            {/* Main CTA - always visible */}
+            <Button size="sm" className="rounded-full h-10 px-4 sm:px-5" asChild>
+              <Link to="/create-trip">
+                <span className="sm:hidden">Go</span>
+                <span className="hidden sm:inline">Getaway</span>
+              </Link>
             </Button>
           </div>
         </div>
       </motion.nav>
 
       {/* Hero Section */}
-      <section className="pt-24 lg:pt-32 pb-12 lg:pb-20 px-4">
+      <section className="pt-16 sm:pt-24 lg:pt-32 pb-12 lg:pb-20 px-4">
         <div className="container mx-auto">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-20 items-center">
             {/* Phone Animation - First on mobile, second on desktop */}
