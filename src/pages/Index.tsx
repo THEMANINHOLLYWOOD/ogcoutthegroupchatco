@@ -113,9 +113,11 @@ const Index = () => {
               </p>
 
               <div className="hidden sm:flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
-                <Button size="lg" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12 shadow-soft">
-                  Create a Trip
-                  <ArrowRight className="ml-2 w-4 h-4" />
+                <Button asChild size="lg" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12 shadow-soft">
+                  <Link to="/create-trip">
+                    Create a Trip
+                    <ArrowRight className="ml-2 w-4 h-4" />
+                  </Link>
                 </Button>
                 <Button size="lg" variant="outline" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12">
                   Join a Trip
@@ -153,9 +155,11 @@ const Index = () => {
             Pick a trip off the shelf. Build complete getaways and share a single payment link with friends.
           </p>
           <div className="flex flex-col gap-3">
-            <Button size="lg" className="rounded-full text-base px-6 h-11 shadow-soft w-full">
-              Create a Trip
-              <ArrowRight className="ml-2 w-4 h-4" />
+            <Button asChild size="lg" className="rounded-full text-base px-6 h-11 shadow-soft w-full">
+              <Link to="/create-trip">
+                Create a Trip
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </Link>
             </Button>
             <Button size="lg" variant="outline" className="rounded-full text-base px-6 h-11 w-full">
               Join a Trip
@@ -278,12 +282,15 @@ const Index = () => {
               Stop endless back-and-forth. Start your first trip today.
             </p>
             <Button 
+              asChild
               size="lg" 
               variant="secondary" 
               className="rounded-full text-base px-8 h-12 shadow-soft relative"
             >
-              Create Your First Trip
-              <ArrowRight className="ml-2 w-4 h-4" />
+              <Link to="/create-trip">
+                Create Your First Trip
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </Link>
             </Button>
           </div>
         </motion.div>
