@@ -55,10 +55,10 @@ export function CountdownTimer({ expiresAt, onExpire }: CountdownTimerProps) {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center gap-2 p-6 rounded-2xl bg-destructive/10 border border-destructive/20"
+        className="flex flex-col items-center gap-2 p-5 sm:p-6 rounded-2xl bg-destructive/10 border border-destructive/20"
       >
-        <Clock className="w-6 h-6 text-destructive" />
-        <span className="text-lg font-semibold text-destructive">Time Expired</span>
+        <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
+        <span className="text-base sm:text-lg font-semibold text-destructive">Time Expired</span>
       </motion.div>
     );
   }
@@ -67,14 +67,14 @@ export function CountdownTimer({ expiresAt, onExpire }: CountdownTimerProps) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-muted/50 border border-border"
+      className="flex flex-col items-center gap-2 sm:gap-3 p-5 sm:p-6 rounded-2xl bg-muted/50 border border-border"
     >
       <div className="flex items-center gap-2 text-muted-foreground">
         <Clock className="w-4 h-4" />
-        <span className="text-sm font-medium">Time remaining to lock in</span>
+        <span className="text-xs sm:text-sm font-medium">Time remaining to lock in</span>
       </div>
 
-      <div className="flex items-center gap-1 font-mono text-4xl font-bold text-foreground">
+      <div className="flex items-center gap-1 font-mono text-3xl sm:text-4xl font-bold text-foreground">
         <TimeUnit value={time.hours} label="h" />
         <span className="text-muted-foreground">:</span>
         <TimeUnit value={time.minutes} label="m" />
@@ -82,7 +82,7 @@ export function CountdownTimer({ expiresAt, onExpire }: CountdownTimerProps) {
         <TimeUnit value={time.seconds} label="s" />
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground text-center">
         Collect payments before time runs out
       </p>
     </motion.div>

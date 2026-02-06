@@ -43,16 +43,16 @@ export function DashboardItineraryView({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center py-10 sm:py-12">
+        <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (!itinerary || !itinerary.days || itinerary.days.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <p>No itinerary yet</p>
+      <div className="text-center py-10 sm:py-12 text-muted-foreground">
+        <p className="text-sm sm:text-base">No itinerary yet</p>
       </div>
     );
   }
@@ -61,8 +61,8 @@ export function DashboardItineraryView({
   const currentDay = days.find(d => d.day_number === selectedDay) || days[0];
 
   return (
-    <div className="space-y-4">
-      {/* Day Tabs - Horizontal scroll */}
+    <div className="space-y-3 sm:space-y-4">
+      {/* Day Tabs - Horizontal scroll with better touch targets */}
       <div 
         ref={scrollRef}
         className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1"
@@ -74,12 +74,12 @@ export function DashboardItineraryView({
             onClick={() => setSelectedDay(day.day_number)}
             whileTap={{ scale: 0.95 }}
             className={cn(
-              "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium",
-              "transition-colors duration-200 touch-manipulation",
+              "flex-shrink-0 px-4 py-2.5 sm:py-2 rounded-full text-sm font-medium",
+              "transition-colors duration-200 touch-manipulation min-w-[72px]",
               "scroll-snap-align-start",
               selectedDay === day.day_number
                 ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 active:bg-muted/70"
             )}
           >
             Day {day.day_number}
@@ -88,33 +88,33 @@ export function DashboardItineraryView({
       </div>
 
       {/* Day Theme */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
+      <div className="flex items-start sm:items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {new Date(currentDay.date).toLocaleDateString("en-US", { 
               weekday: "long", 
               month: "short", 
               day: "numeric" 
             })}
           </p>
-          <h4 className="font-medium text-foreground">{currentDay.theme}</h4>
+          <h4 className="font-medium text-foreground text-sm sm:text-base truncate">{currentDay.theme}</h4>
         </div>
         {isOrganizer && allPaid && onAddActivity && (
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={() => onAddActivity(currentDay.day_number)}
-            className="rounded-full"
+            className="rounded-full h-9 px-3 shrink-0"
           >
             <Plus className="w-4 h-4 mr-1" />
-            Add
+            <span className="hidden sm:inline">Add</span>
           </Button>
         )}
       </div>
 
       {/* Activities */}
       <AnimatePresence mode="popLayout">
-        <div className="space-y-3">
+        <div className="space-y-2.5 sm:space-y-3">
           {currentDay.activities.map((activity, index) => {
             const reactionKey = getReactionKey(currentDay.day_number, index);
             const activityReactions = reactions.get(reactionKey) || defaultReactionCounts;
@@ -139,14 +139,14 @@ export function DashboardItineraryView({
 
       {/* Empty state for day */}
       {currentDay.activities.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No activities planned for this day</p>
+        <div className="text-center py-6 sm:py-8 text-muted-foreground">
+          <p className="text-sm">No activities planned for this day</p>
           {isOrganizer && allPaid && onAddActivity && (
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => onAddActivity(currentDay.day_number)}
-              className="mt-3"
+              className="mt-3 h-10"
             >
               <Plus className="w-4 h-4 mr-1" />
               Add Activity

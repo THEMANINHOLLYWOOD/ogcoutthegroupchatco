@@ -193,32 +193,33 @@ export default function TripDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
+    <div className="min-h-screen bg-background pb-safe">
+      {/* Header - Optimized for mobile */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between max-w-lg">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between max-w-lg">
           <Link to={`/trip/${tripId}`}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              View Trip
+            <Button variant="ghost" size="sm" className="h-10 px-3 -ml-2">
+              <ArrowLeft className="w-4 h-4 mr-1.5" />
+              <span className="hidden sm:inline">View Trip</span>
+              <span className="sm:hidden">Trip</span>
             </Button>
           </Link>
-          <h1 className="font-semibold text-foreground">Dashboard</h1>
-          <div className="w-20" />
+          <h1 className="font-semibold text-foreground text-base">Dashboard</h1>
+          <div className="w-16 sm:w-20" />
         </div>
       </div>
 
-      <main className="container mx-auto px-4 py-6 max-w-lg space-y-6">
+      <main className="container mx-auto px-4 py-5 sm:py-6 max-w-lg space-y-5 sm:space-y-6">
         {/* Trip Info - Compact */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
-          <h2 className="text-2xl font-bold text-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">
             {trip.destination_city}, {trip.destination_country}
           </h2>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             {new Date(trip.departure_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(trip.return_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </p>
         </motion.div>
@@ -247,7 +248,7 @@ export default function TripDashboard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-card border border-border rounded-2xl p-5"
+          className="bg-card border border-border rounded-2xl p-4 sm:p-5"
         >
           <TravelerPaymentStatus
             travelers={trip.travelers}
@@ -263,11 +264,11 @@ export default function TripDashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-card border border-border rounded-2xl p-5"
+            className="bg-card border border-border rounded-2xl p-4 sm:p-5"
           >
             <div className="flex items-center gap-2 mb-4">
               <MapPin className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Itinerary</h3>
+              <h3 className="text-base sm:text-lg font-semibold text-foreground">Itinerary</h3>
             </div>
             
             <DashboardItineraryView
@@ -289,11 +290,11 @@ export default function TripDashboard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-card border border-border rounded-2xl p-5"
+          className="bg-card border border-border rounded-2xl p-4 sm:p-5"
         >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-foreground">Trip Total</h3>
-            <span className="text-2xl font-bold text-foreground">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">Trip Total</h3>
+            <span className="text-xl sm:text-2xl font-bold text-foreground">
               ${trip.trip_total.toLocaleString()}
             </span>
           </div>
@@ -308,7 +309,7 @@ export default function TripDashboard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-card border border-border rounded-2xl p-5"
+          className="bg-card border border-border rounded-2xl p-4 sm:p-5"
         >
           <ShareButton tripId={trip.id} shareCode={trip.share_code} isClaimed={true} />
         </motion.div>
