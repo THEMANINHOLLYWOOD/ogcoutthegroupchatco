@@ -172,8 +172,8 @@ const Index = () => {
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12">
-                  Join a Trip
+                <Button asChild size="lg" variant="outline" className="rounded-full text-base px-6 sm:px-8 h-11 sm:h-12">
+                  <Link to="/join">Join a Trip</Link>
                 </Button>
               </div>
 
@@ -214,8 +214,8 @@ const Index = () => {
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" className="rounded-full text-base px-6 h-11 w-full">
-              Join a Trip
+            <Button asChild size="lg" variant="outline" className="rounded-full text-base px-6 h-11 w-full">
+              <Link to="/join">Join a Trip</Link>
             </Button>
           </div>
         </div>

@@ -71,6 +71,7 @@ export async function fetchTrip(tripId: string): Promise<{ success: boolean; tri
       trip_total: Number(rawData.trip_total),
       itinerary: rawData.itinerary as Itinerary | null,
       itinerary_status: rawData.itinerary_status as SavedTrip["itinerary_status"],
+      share_code: rawData.share_code as string,
       created_at: rawData.created_at as string,
       updated_at: rawData.updated_at as string,
     };
@@ -79,6 +80,30 @@ export async function fetchTrip(tripId: string): Promise<{ success: boolean; tri
   } catch (err) {
     console.error("Exception fetching trip:", err);
     return { success: false, error: "Failed to fetch trip" };
+  }
+}
+
+export async function fetchTripByCode(code: string): Promise<{ success: boolean; tripId?: string; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from("trips")
+      .select("id")
+      .eq("share_code", code.toUpperCase())
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching trip by code:", error);
+      return { success: false, error: "Failed to lookup trip" };
+    }
+
+    if (!data) {
+      return { success: false, error: "Trip not found. Check the code and try again." };
+    }
+
+    return { success: true, tripId: (data as { id: string }).id };
+  } catch (err) {
+    console.error("Exception fetching trip by code:", err);
+    return { success: false, error: "Failed to lookup trip" };
   }
 }
 
@@ -149,6 +174,7 @@ export async function subscribeToTripUpdates(
           trip_total: Number(data.trip_total),
           itinerary: (data.itinerary as unknown) as Itinerary | null,
           itinerary_status: data.itinerary_status as SavedTrip["itinerary_status"],
+          share_code: data.share_code as string,
           created_at: data.created_at as string,
           updated_at: data.updated_at as string,
         };
