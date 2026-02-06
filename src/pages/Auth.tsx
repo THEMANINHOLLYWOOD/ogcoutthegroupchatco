@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -28,8 +28,19 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
   const { toast } = useToast();
+
+  // Get redirect param from URL
+  const redirectParam = searchParams.get('redirect');
+
+  // Store redirect in sessionStorage before OAuth (persists through redirect)
+  useEffect(() => {
+    if (redirectParam) {
+      sessionStorage.setItem('auth_redirect', redirectParam);
+    }
+  }, [redirectParam]);
 
   const signInForm = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
@@ -41,9 +52,18 @@ const Auth = () => {
     defaultValues: { email: '', password: '', fullName: '' },
   });
 
+  // Handle successful authentication - redirect to stored path or home
   useEffect(() => {
     if (user) {
-      navigate('/', { replace: true });
+      const storedRedirect = sessionStorage.getItem('auth_redirect');
+      sessionStorage.removeItem('auth_redirect');
+      
+      // Validate redirect is internal path (security: prevent open redirect)
+      const finalRedirect = storedRedirect?.startsWith('/') && !storedRedirect.startsWith('//')
+        ? storedRedirect 
+        : '/';
+        
+      navigate(finalRedirect, { replace: true });
     }
   }, [user, navigate]);
 
