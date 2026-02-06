@@ -55,14 +55,13 @@ export default function TripDashboard() {
     };
   }, [tripId]);
 
-  const togglePaid = (travelerName: string) => {
+  const handlePay = async (travelerName: string): Promise<void> => {
+    // Simulate payment processing delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     setPaidTravelers(prev => {
       const next = new Set(prev);
-      if (next.has(travelerName)) {
-        next.delete(travelerName);
-      } else {
-        next.add(travelerName);
-      }
+      next.add(travelerName);
       return next;
     });
   };
@@ -164,7 +163,7 @@ export default function TripDashboard() {
           <TravelerPaymentStatus
             travelers={trip.travelers}
             paidTravelers={paidTravelers}
-            onTogglePaid={togglePaid}
+            onPay={handlePay}
             isOrganizer={true}
           />
         </motion.div>
