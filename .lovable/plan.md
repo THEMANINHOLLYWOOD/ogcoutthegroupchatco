@@ -1,195 +1,134 @@
 
 
-# Plan: User Authentication & Profile System
+# Plan: Auto-Add Current Location to Places Visited
 
 ## Overview
 
-This plan implements a comprehensive user authentication system with Google OAuth, user profiles, photo galleries, and travel history tracking. The design will be minimalistic with ultra-smooth Framer Motion animations, matching the existing iMessage-inspired aesthetic.
+When users first visit their profile or the "Places" tab, we'll prompt them to share their current location. Using the browser's Geolocation API combined with a reverse geocoding service (via a new edge function), we'll automatically populate their:
+- Current **city** (e.g., "Los Angeles")
+- Current **state/province** (e.g., "California")  
+- Current **country** (e.g., "United States")
+
+This creates a delightful onboarding experience where users see their travel history pre-populated with their home location.
 
 ---
 
 ## User Flow
 
 ```text
-[Landing Page / Create Trip]
-     |
-     | Click "Sign In" 
-     v
-[/auth] - Sign In Page
-     |
-     | Email/Password OR Google OAuth
-     v
-[Authenticated User]
-     |
-     v
-[/profile] - User Profile Page
-     |
-     +-- Profile Picture (editable)
-     +-- Personal Info (phone, email)
-     +-- Photo Gallery (photos of user)
-     +-- Travel Gallery (photos + videos)
-     +-- Travel History:
-         +-- Cities visited
-         +-- States visited
-         +-- Countries by Continent
+[User Opens Profile → Places Tab]
+          |
+          v
+    [Check: Has user set home location?]
+          |
+    ┌─────┴─────┐
+    │ NO        │ YES
+    v           v
+[Show Location      [Show normal
+ Prompt Modal]       Places UI]
+    |
+    | User clicks "Share My Location"
+    v
+[Browser Geolocation API]
+    |
+    | Get lat/lng coordinates
+    v
+[Edge Function: reverse-geocode]
+    |
+    | Returns city, state, country
+    v
+[Preview Location Card]
+    |
+    | User confirms or skips
+    v
+[Insert city, state, country to DB]
+    |
+    | Mark home_location_set = true
+    v
+[Show Success Animation]
 ```
-
----
-
-## Technical Architecture
-
-### Database Tables
-
-**profiles** - Core user profile data
-- id (uuid, FK to auth.users)
-- email (text)
-- phone (text, nullable)
-- full_name (text, nullable)
-- avatar_url (text, nullable)
-- created_at, updated_at
-
-**user_photos** - Personal photo gallery
-- id (uuid)
-- user_id (uuid, FK to profiles)
-- url (text)
-- caption (text, nullable)
-- created_at
-
-**travel_media** - Travel photos & videos
-- id (uuid)
-- user_id (uuid, FK to profiles)
-- url (text)
-- media_type (enum: 'photo', 'video')
-- caption (text, nullable)
-- location (text, nullable)
-- created_at
-
-**visited_cities** - Cities traveled to
-- id (uuid)
-- user_id (uuid, FK to profiles)
-- city_name (text)
-- country (text)
-- visited_date (date, nullable)
-- created_at
-
-**visited_states** - States/provinces traveled to
-- id (uuid)
-- user_id (uuid, FK to profiles)
-- state_name (text)
-- country (text)
-- created_at
-
-**visited_countries** - Countries with continent grouping
-- id (uuid)
-- user_id (uuid, FK to profiles)
-- country_name (text)
-- continent (text)
-- created_at
-
-### Storage Buckets
-
-**avatars** - User profile pictures (public)
-**user-photos** - Personal gallery (authenticated)
-**travel-media** - Travel photos/videos (authenticated)
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Database Setup
+### Step 1: Database Migration
 
-Create migration with all tables, RLS policies, and storage buckets:
-- profiles table with trigger to auto-create on signup
-- All visited location tables with proper foreign keys
-- Media tables for galleries
-- RLS policies requiring authenticated users
-- Storage buckets with upload/read policies
+Add fields to track home location setup:
 
-### Step 2: Configure Google OAuth
+**Modify `profiles` table:**
+- `home_city` (text, nullable) - User's current city
+- `home_state` (text, nullable) - User's current state/province
+- `home_country` (text, nullable) - User's current country
+- `home_location_set` (boolean, default false) - Whether location has been set
 
-Use the `supabase--configure-social-auth` tool to enable managed Google OAuth via Lovable Cloud. This generates the lovable auth module automatically.
+This lets us:
+1. Know if we should show the location prompt
+2. Store their home location for future reference (e.g., default departure airport)
 
-### Step 3: Create Authentication Pages
+### Step 2: Create Reverse Geocoding Edge Function
 
-**File: `src/pages/Auth.tsx`**
+**File: `supabase/functions/reverse-geocode/index.ts`**
 
-A beautiful, minimalistic auth page with:
-- Framer Motion fade-in animations
-- Email/password form with validation (using zod)
-- "Continue with Google" button (primary, above email form)
-- Toggle between Sign In and Sign Up modes
-- Error handling with toast notifications
-- Auto-redirect on successful auth
+Edge function that:
+1. Receives latitude/longitude coordinates
+2. Uses a free reverse geocoding API (OpenStreetMap Nominatim or Google's free tier via Gemini)
+3. Returns structured location data (city, state, country)
 
-### Step 4: Create Auth Context/Hook
+We'll use OpenStreetMap's Nominatim API (free, no API key required):
+```typescript
+// Example: https://nominatim.openstreetmap.org/reverse?lat=34.0522&lon=-118.2437&format=json
+```
+
+### Step 3: Create Location Prompt Component
+
+**File: `src/components/profile/LocationPrompt.tsx`**
+
+A beautiful modal/card that appears when `home_location_set` is false:
+- Friendly illustration or icon (MapPin animation)
+- Header: "Where do you call home?"
+- Subtext: "We'll add your current city to your travel history"
+- Primary button: "Share My Location" (with location icon)
+- Secondary button: "I'll add it manually"
+- Privacy note: "Your exact location is not stored"
+
+### Step 4: Create Location Detection Hook
+
+**File: `src/hooks/useLocationDetection.ts`**
+
+Custom hook that handles:
+- Browser geolocation permission request
+- Loading/error states
+- Calling the reverse-geocode edge function
+- Returning city, state, country data
+
+### Step 5: Create Location Preview Component
+
+**File: `src/components/profile/LocationPreview.tsx`**
+
+After detection, show a preview card:
+- Flag emoji for the country
+- City, State, Country displayed beautifully
+- "This looks right!" confirm button
+- "That's not quite right" edit option
+- Animated checkmarks for each item being added
+
+### Step 6: Update PlacesVisited Component
+
+**File: `src/components/profile/PlacesVisited.tsx`**
+
+Modify to:
+1. Check if `home_location_set` is false in profile
+2. If false, show LocationPrompt before the main content
+3. After location is set, auto-add city/state/country (avoiding duplicates)
+4. Update profile.home_location_set to true
+
+### Step 7: Update Auth Hook and Profile Type
 
 **File: `src/hooks/useAuth.tsx`**
 
-React context for auth state:
-- Current user and session state
-- Loading state during auth checks
-- Sign in/out functions
-- Profile data fetching
-- Works with both email and Google OAuth
-
-### Step 5: Create Protected Route Component
-
-**File: `src/components/ProtectedRoute.tsx`**
-
-HOC/wrapper component:
-- Checks if user is authenticated
-- Shows loading spinner during auth check
-- Redirects to /auth if not logged in
-- Renders children if authenticated
-
-### Step 6: Create Profile Page
-
-**File: `src/pages/Profile.tsx`**
-
-Main profile page with tabs/sections:
-- Header with avatar (editable) + name
-- Tabbed interface:
-  - About (phone, email)
-  - My Photos (personal gallery)
-  - Travel Gallery (photos + videos)
-  - Places I've Been (cities, states, countries)
-
-### Step 7: Create Profile Components
-
-**Avatar Section:**
-- `src/components/profile/ProfileHeader.tsx` - Large avatar with edit overlay
-- `src/components/profile/AvatarUpload.tsx` - Photo upload with crop/preview
-
-**Personal Info:**
-- `src/components/profile/PersonalInfoForm.tsx` - Email, phone editor
-
-**Photo Galleries:**
-- `src/components/profile/PhotoGallery.tsx` - Masonry grid of photos
-- `src/components/profile/TravelGallery.tsx` - Photos + videos with location tags
-- `src/components/profile/MediaUploader.tsx` - Drag-drop upload with progress
-
-**Travel History:**
-- `src/components/profile/PlacesVisited.tsx` - Main container with sub-sections
-- `src/components/profile/CityList.tsx` - Searchable list of cities
-- `src/components/profile/StateList.tsx` - List of states/provinces
-- `src/components/profile/ContinentSection.tsx` - Collapsible continent with countries
-- `src/components/profile/AddPlaceModal.tsx` - Modal to add new location
-
-### Step 8: Update Navigation
-
-**File: `src/pages/Index.tsx`**
-
-Update the "Sign In" button in the navbar:
-- If not logged in: Link to /auth
-- If logged in: Show avatar with dropdown (Profile, Sign Out)
-
-### Step 9: Update App Routes
-
-**File: `src/App.tsx`**
-
-Add new routes:
-- /auth - Authentication page
-- /profile - User profile (protected)
+Add new fields to Profile interface:
+- home_city, home_state, home_country, home_location_set
 
 ---
 
@@ -197,115 +136,103 @@ Add new routes:
 
 | File | Action | Description |
 |------|--------|-------------|
-| (Database Migration) | Create | Tables, RLS, storage buckets |
-| `src/pages/Auth.tsx` | Create | Sign in/up page with Google OAuth |
-| `src/pages/Profile.tsx` | Create | User profile page |
-| `src/hooks/useAuth.tsx` | Create | Auth context and hook |
-| `src/components/ProtectedRoute.tsx` | Create | Auth guard component |
-| `src/components/profile/ProfileHeader.tsx` | Create | Avatar + name header |
-| `src/components/profile/AvatarUpload.tsx` | Create | Avatar upload dialog |
-| `src/components/profile/PersonalInfoForm.tsx` | Create | Edit phone/email |
-| `src/components/profile/PhotoGallery.tsx` | Create | Personal photos grid |
-| `src/components/profile/TravelGallery.tsx` | Create | Travel media grid |
-| `src/components/profile/MediaUploader.tsx` | Create | Upload component |
-| `src/components/profile/PlacesVisited.tsx` | Create | Travel history section |
-| `src/components/profile/CityList.tsx` | Create | Cities list |
-| `src/components/profile/StateList.tsx` | Create | States list |
-| `src/components/profile/ContinentSection.tsx` | Create | Countries by continent |
-| `src/components/profile/AddPlaceModal.tsx` | Create | Add location modal |
-| `src/App.tsx` | Modify | Add /auth and /profile routes |
-| `src/pages/Index.tsx` | Modify | Update nav with auth state |
+| (Database Migration) | Create | Add home location fields to profiles |
+| `supabase/functions/reverse-geocode/index.ts` | Create | Geocoding edge function |
+| `supabase/config.toml` | Modify | Add reverse-geocode function |
+| `src/hooks/useLocationDetection.ts` | Create | Location detection hook |
+| `src/components/profile/LocationPrompt.tsx` | Create | Initial prompt modal |
+| `src/components/profile/LocationPreview.tsx` | Create | Preview and confirm UI |
+| `src/components/profile/PlacesVisited.tsx` | Modify | Integrate location prompt |
+| `src/hooks/useAuth.tsx` | Modify | Update Profile interface |
+
+---
+
+## Technical Details
+
+### Reverse Geocoding Edge Function
+
+Using OpenStreetMap Nominatim (free, no API key):
+
+```typescript
+const response = await fetch(
+  `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
+  {
+    headers: {
+      'User-Agent': 'OutTheGroupChat/1.0'
+    }
+  }
+);
+
+const data = await response.json();
+// data.address contains: city, state, country, etc.
+```
+
+### Duplicate Prevention
+
+Before inserting, check if place already exists:
+
+```typescript
+// Check if city already exists for user
+const { data: existingCity } = await supabase
+  .from('visited_cities')
+  .select('id')
+  .eq('user_id', userId)
+  .eq('city_name', city)
+  .eq('country', country)
+  .maybeSingle();
+
+if (!existingCity) {
+  // Insert new city
+}
+```
+
+### Animation Pattern
+
+When places are auto-added, use staggered animations:
+
+```typescript
+<motion.div
+  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+  animate={{ opacity: 1, scale: 1, y: 0 }}
+  transition={{ delay: index * 0.2, type: 'spring' }}
+>
+  ✓ Added {city}
+</motion.div>
+```
 
 ---
 
 ## UI/UX Details
 
-### Auth Page Design
-- Clean white background with subtle gradient
-- Large "Out the Group Chat" logo at top
-- Framer Motion stagger animation for form elements
-- Google button: White with colored Google logo, prominent
-- Separator: "or continue with email"
-- Floating input labels with smooth transitions
-- Spring animations on button hover/tap
-- Success: confetti-like particle effect
+### Location Prompt Modal
 
-### Profile Page Design
-- Full-bleed avatar at top (like iOS contact)
-- Sticky name below avatar as user scrolls
-- Horizontal pill tabs for sections
-- Smooth page transitions between tabs
-- Masonry photo grid with hover zoom
-- Add buttons as floating action buttons
-- Pull-to-refresh on mobile
+- Subtle glass background
+- Large MapPin icon with pulsing animation
+- Friendly, conversational copy
+- Clear privacy messaging
+- Smooth fade-in on mount
 
-### Travel History UI
-- Continent sections as collapsible accordions
-- Country flags next to names
-- Visual counter badges (e.g., "12 cities")
-- Map visualization option (future)
-- Autocomplete for adding new places
+### Location Preview Card
 
-### Animation Patterns
-- Page transitions: `opacity: 0 -> 1`, `y: 20 -> 0`
-- Tab switches: Horizontal slide with crossfade
-- Photo uploads: Scale up with spring
-- Button hovers: Subtle scale (1.02)
-- Loading states: Skeleton with shimmer
+- Country flag prominently displayed
+- City name large and bold
+- State and country in smaller text below
+- Green checkmarks appearing one by one
+- Confetti or particle effect on confirm
+
+### Error States
+
+- Geolocation denied: "No worries! You can add places manually"
+- API error: Retry button with "Having trouble detecting your location"
+- Outside known regions: Show what we found with edit option
 
 ---
 
-## Technical Notes
+## Privacy Considerations
 
-### Google OAuth Integration
-Using Lovable Cloud's managed Google OAuth (no API keys needed):
-```typescript
-import { lovable } from "@/integrations/lovable/index";
-
-const handleGoogleSignIn = async () => {
-  const { error } = await lovable.auth.signInWithOAuth("google", {
-    redirect_uri: window.location.origin,
-  });
-};
-```
-
-### File Upload Pattern
-```typescript
-// Upload to storage bucket
-const { data, error } = await supabase.storage
-  .from('avatars')
-  .upload(`${userId}/${filename}`, file);
-
-// Get public URL
-const { data: { publicUrl } } = supabase.storage
-  .from('avatars')
-  .getPublicUrl(`${userId}/${filename}`);
-```
-
-### Profile Auto-Creation
-Database trigger creates profile on signup:
-```sql
-CREATE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, full_name)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
-
-### Continent Data
-For the countries-by-continent feature, we'll include a static mapping of countries to continents in `src/data/continents.ts`.
-
----
-
-## Security Considerations
-
-- All profile data protected by RLS (user can only access their own)
-- Storage buckets require authentication for uploads
-- Avatar bucket is public for read (profile pics need to be visible)
-- Email validation with zod before submission
-- Rate limiting handled by backend auth
-- No sensitive data logged to console
+- Only city/state/country stored (not exact coordinates)
+- User must explicitly opt-in to share location
+- Clear messaging about what data is stored
+- Easy skip option for privacy-conscious users
+- Coordinates are only used for reverse geocoding, never persisted
 
