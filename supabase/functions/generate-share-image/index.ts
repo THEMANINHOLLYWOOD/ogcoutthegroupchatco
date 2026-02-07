@@ -67,6 +67,19 @@ serve(async (req) => {
       .map(t => t.avatar_url)
       .filter((url): url is string => !!url);
 
+    // For group images, require at least one avatar - skip if none provided
+    if (isGroupImage && avatarUrls.length === 0) {
+      console.log("Skipping group image generation - no avatars provided");
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          skipped: true, 
+          reason: "no_avatars" 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // For personal images, fetch the requesting user's profile avatar
     let personalAvatarUrl: string | null = null;
     if (!isGroupImage && userId) {
@@ -81,29 +94,55 @@ serve(async (req) => {
       }
     }
 
-    const count = travelerList.length || travelerCount || 1;
-    console.log(`Destination: ${destinationCity}, ${destinationCountry}, Avatars: ${avatarUrls.length}`);
+    // For personal images without avatar, skip generation
+    if (!isGroupImage && userId && !personalAvatarUrl) {
+      console.log("Skipping personal image generation - no avatar for user");
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          skipped: true, 
+          reason: "no_avatar" 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // Build the prompt based on type and available avatars
+    const count = avatarUrls.length;
+    console.log(`Destination: ${destinationCity}, ${destinationCountry}, Avatars: ${count}`);
+
+    // Build the prompt - now only runs when we have avatars
     let basePrompt: string;
     
-    if (isGroupImage && avatarUrls.length > 0) {
+    if (isGroupImage) {
       basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
-Show ${count} friends together enjoying a famous landmark, golden hour lighting, vibrant colors.
-Use the reference photos to create realistic depictions of these people at the destination.
-Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
-The friends should look happy and excited together, capturing a perfect travel memory.`;
-    } else if (personalAvatarUrl) {
-      basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
-Show a happy traveler enjoying a famous landmark, golden hour lighting, vibrant colors.
-Use the reference photo to create a realistic depiction of this person at the destination.
-Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
-The person should look excited and joyful, capturing a perfect travel memory.`;
+
+CRITICAL INSTRUCTION: The reference photos below show the ACTUAL people who should appear in this image.
+Generate realistic depictions of THESE SPECIFIC INDIVIDUALS at the destination.
+
+Requirements:
+- Match their exact facial features, skin tones, hair styles, and overall appearance
+- Do NOT create generic or random people - recreate these SPECIFIC individuals
+- Place these ${count} people at a famous landmark in ${destinationCity}
+- Show them looking happy and excited, capturing a perfect travel memory together
+
+Style: Golden hour lighting, vibrant colors, professional travel photography
+Composition: Ultra-wide cinematic shot, 16:9 aspect ratio, Instagram-worthy
+Mood: Authentic joy, friendship, adventure`;
     } else {
       basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
-Show ${count} diverse friends enjoying a famous landmark, golden hour lighting, vibrant colors.
-Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
-The friends should look happy and excited, capturing a perfect travel memory together.`;
+
+CRITICAL INSTRUCTION: The reference photo below shows the ACTUAL person who should appear in this image.
+Generate a realistic depiction of THIS SPECIFIC INDIVIDUAL at the destination.
+
+Requirements:
+- Match their exact facial features, skin tone, hair style, and overall appearance
+- Do NOT create a generic or random person - recreate this SPECIFIC individual
+- Place them at a famous landmark in ${destinationCity}
+- Show them looking happy and excited, capturing a perfect travel memory
+
+Style: Golden hour lighting, vibrant colors, professional travel photography
+Composition: Ultra-wide cinematic shot, 16:9 aspect ratio, Instagram-worthy
+Mood: Authentic joy, adventure, wanderlust`;
     }
 
     // Build multi-modal content array
@@ -112,7 +151,7 @@ The friends should look happy and excited, capturing a perfect travel memory tog
     ];
 
     // Add reference photos
-    if (isGroupImage && avatarUrls.length > 0) {
+    if (isGroupImage) {
       // Add up to 4 avatar references for group image
       for (const url of avatarUrls.slice(0, 4)) {
         contentArray.push({

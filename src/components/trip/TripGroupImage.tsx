@@ -23,7 +23,16 @@ export function TripGroupImage({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
+  // Filter travelers with profile pictures
+  const travelersWithAvatars = travelers.filter(t => t.avatar_url);
+
   useEffect(() => {
+    // If no travelers have avatars, don't attempt generation
+    if (travelersWithAvatars.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
     let isMounted = true;
 
     async function generateImage() {
@@ -47,10 +56,10 @@ export function TripGroupImage({
           return;
         }
 
-        // Build traveler data with avatar URLs
-        const travelerData = travelers.map(t => ({
+        // Build traveler data with avatar URLs (only include those with avatars)
+        const travelerData = travelersWithAvatars.map(t => ({
           name: t.name,
-          avatar_url: t.avatar_url || null,
+          avatar_url: t.avatar_url,
         }));
 
         // Call edge function to generate group image
@@ -73,8 +82,16 @@ export function TripGroupImage({
           return;
         }
 
-        const result = data as { success: boolean; imageUrl?: string; error?: string };
+        const result = data as { success: boolean; imageUrl?: string; skipped?: boolean; reason?: string; error?: string };
         
+        // Handle skipped response (no avatars on backend)
+        if (result.skipped) {
+          if (isMounted) {
+            setIsLoading(false);
+          }
+          return;
+        }
+
         if (result.success && result.imageUrl && isMounted) {
           setImageUrl(result.imageUrl);
           setIsLoading(false);
@@ -97,7 +114,12 @@ export function TripGroupImage({
     return () => {
       isMounted = false;
     };
-  }, [tripId, destinationCity, destinationCountry, travelers, onImageReady]);
+  }, [tripId, destinationCity, destinationCountry, travelersWithAvatars.length, onImageReady]);
+
+  // Don't render anything if no travelers have profile pictures
+  if (travelersWithAvatars.length === 0) {
+    return null;
+  }
 
   // Don't render anything if there was an error
   if (hasError) {
@@ -133,7 +155,7 @@ export function TripGroupImage({
             <motion.img
               key="image"
               src={imageUrl}
-              alt={`${travelers.length} travelers in ${destinationCity}`}
+              alt={`${travelersWithAvatars.length} travelers in ${destinationCity}`}
               className="h-full w-full object-cover rounded-2xl"
               initial={{ opacity: 0, scale: 1.02 }}
               animate={{ opacity: 1, scale: 1 }}

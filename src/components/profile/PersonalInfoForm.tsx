@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { TravelCompanions } from './TravelCompanions';
 
 const formSchema = z.object({
   phone: z.string().max(20, 'Phone number too long').optional().or(z.literal('')),
@@ -122,6 +123,12 @@ export const PersonalInfoForm = ({ email, phone, fullName }: PersonalInfoFormPro
           Save Changes
         </Button>
       </form>
+
+      {/* Travel Companions Section */}
+      <div className="mt-8 pt-6 border-t border-border">
+        <h3 className="text-lg font-semibold mb-4">Travel Companions</h3>
+        <TravelCompanions />
+      </div>
     </motion.div>
   );
 };
