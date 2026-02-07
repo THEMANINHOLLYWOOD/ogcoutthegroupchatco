@@ -76,7 +76,7 @@ export const TripPreviewCard = ({
       {/* iMessage link preview footer */}
       <div className="px-4 py-2 bg-muted/50 border-t border-border">
         <p className="text-xs text-muted-foreground truncate">
-          outthegroupchat.app/trip/miami-2024
+          ogcoutthegroupchat.lovable.app/trip/X7KM3P
         </p>
       </div>
     </motion.div>
