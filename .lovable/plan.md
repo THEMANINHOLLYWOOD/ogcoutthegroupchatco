@@ -1,99 +1,182 @@
 
-# Plan: Fix "Build Your Itinerary" Feature
 
-## Problem Diagnosis
+# Plan: Streamlined Trip Creation with Upfront Airport Selection
 
-The itinerary generation is failing with the exact same pattern as the previous `search-trip` issue:
+## Overview
 
-| Evidence | Finding |
-|----------|---------|
-| Console error | `FunctionsFetchError: Failed to send a request to the Edge Function` |
-| Network request | POST to `/functions/v1/generate-itinerary` fails with "Failed to fetch" |
-| Edge function logs | **No logs found** - function is not running on Supabase |
-| Code exists | `supabase/functions/generate-itinerary/index.ts` is present (213 lines) |
-| Config exists | `supabase/config.toml` includes `[functions.generate-itinerary]` |
-
-The function code is valid and complete - it just needs to be redeployed.
+Redesign the Create Trip entry point to show **Destination** and **Departing From** airport fields immediately when the page loads. This creates a more minimalistic, Apple-inspired experience where users can start planning right away without uploading an ID first.
 
 ---
 
-## Current Flow (Broken)
+## Current Flow (Multi-Step)
 
 ```text
-1. Trip created → itinerary_status = "pending"
-2. TripView loads → sees status is "pending"
-3. Calls generateItinerary() in tripService.ts
-4. supabase.functions.invoke("generate-itinerary", {...})
-5. ❌ FAILS: Edge function not deployed/active
-6. User sees skeleton loading forever (no itinerary)
+1. Upload ID/Passport
+2. Processing & extraction
+3. Review traveler info
+4. Enter destination + origin + dates
+5. Add travelers
+6. Search & summary
+```
+
+Users must complete 3 steps before even seeing the airport fields.
+
+---
+
+## New Flow (Streamlined)
+
+```text
+1. Enter destination + origin (shown immediately)
+2. Select dates
+3. Add travelers (ID scan optional per traveler)
+4. Search & summary
+```
+
+The trip details are front and center when the page loads.
+
+---
+
+## Design Specifications
+
+### New Create Trip Landing View
+
+| Element | Specification |
+|---------|--------------|
+| Headline | "Where to next?" (centered, `text-3xl` mobile / `text-4xl` desktop) |
+| Subheadline | "Plan your trip in seconds" (muted, `text-lg`) |
+| Destination field | Full-width airport autocomplete, placeholder "Search destination..." |
+| Origin field | Full-width with geolocation button, auto-detects on load |
+| Date picker | Range picker for departure/return |
+| Continue button | Primary, full-width, disabled until all fields filled |
+| Visual route | Appears once both airports selected (origin → destination with plane icon) |
+
+### Visual Layout (Mobile-First)
+
+```text
+┌─────────────────────────────────────┐
+│  ←  Back                  Step 1/3  │
+├─────────────────────────────────────┤
+│                                     │
+│         Where to next?              │
+│     Plan your trip in seconds       │
+│                                     │
+│  ┌───────────────────────────────┐  │
+│  │  🔍 Search destination...     │  │
+│  └───────────────────────────────┘  │
+│                                     │
+│  ┌─────────────────────────┐ ┌──┐   │
+│  │  Detecting location...  │ │📍│   │
+│  └─────────────────────────┘ └──┘   │
+│                                     │
+│       ┌─────────────────────┐       │
+│  SFO  │───── ✈️ ─────│  CDG       │
+│  S.F. │               │ Paris      │
+│       └─────────────────────┘       │
+│                                     │
+│  ┌───────────────────────────────┐  │
+│  │  📅 Select travel dates       │  │
+│  └───────────────────────────────┘  │
+│                                     │
+│  ┌───────────────────────────────┐  │
+│  │         Continue →            │  │
+│  └───────────────────────────────┘  │
+│                                     │
+└─────────────────────────────────────┘
 ```
 
 ---
 
-## Solution
+## Implementation Steps
 
-### Step 1: Redeploy Edge Function
+### Step 1: Update CreateTrip Page Structure
 
-The `generate-itinerary` function needs to be redeployed to Supabase:
+**File: `src/pages/CreateTrip.tsx`**
 
-| Action | Details |
-|--------|---------|
-| Function | `generate-itinerary` |
-| Location | `supabase/functions/generate-itinerary/index.ts` |
-| Change | None - code is correct, just needs deployment |
+- Change initial step from `"upload"` to `"trip-details"`
+- Update step numbers to reflect 3 steps instead of 4
+- Remove mandatory ID scan requirement at start
+- Add optional "Add your travel docs" at travelers step instead
 
-### Step 2: Verify Deployment
+### Step 2: Modify TripDetailsStep Component
 
-After deployment, the function should:
-1. Respond to POST requests
-2. Show logs in Supabase dashboard
-3. Call Lovable AI Gateway to generate itinerary
-4. Update the trip record with the generated itinerary
+**File: `src/components/trip-wizard/TripDetailsStep.tsx`**
+
+- Update headline to be more inviting: "Where to next?"
+- Make `organizerName` prop optional (won't have it at start)
+- Keep the existing airport autocomplete fields
+- Keep the visual route display
+- Keep the date range picker
+
+### Step 3: Simplify Step Progression
+
+Update the step tracking:
+
+| Step | Number | Description |
+|------|--------|-------------|
+| trip-details | 1 | Destination, origin, dates |
+| travelers | 2 | Add travelers (ID scan optional here) |
+| searching | 2 | Loading state |
+| summary | 3 | Final review |
+
+### Step 4: Move ID Scanning to Travelers Step
+
+**File: `src/components/trip-wizard/AddTravelersStep.tsx`**
+
+- Add organizer info input at top of travelers step
+- Make ID scanning optional (can enter manually)
+- Keep the "scan ID" option as a convenience feature
 
 ---
 
-## Expected Result After Fix
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/pages/CreateTrip.tsx` | Start at trip-details step, adjust step numbering, make ID scan optional |
+| `src/components/trip-wizard/TripDetailsStep.tsx` | Update headline, make organizerName optional |
+
+---
+
+## User Experience Flow
 
 ```text
-1. Trip created → itinerary_status = "pending"
-2. TripView loads → sees status is "pending"
-3. Calls generateItinerary()
-4. Edge function receives request
-5. Updates status to "generating"
-6. Calls Lovable AI Gateway (Gemini 3 Flash)
-7. AI returns structured itinerary data
-8. Saves itinerary to trips table
-9. Updates status to "complete"
-10. Realtime subscription notifies client
-11. User sees full day-by-day itinerary
+User opens /create-trip
+    ↓
+Sees destination + origin fields immediately
+    ↓
+Starts typing destination → autocomplete dropdown
+    ↓
+Selects destination airport
+    ↓
+Origin auto-detected (or tap geolocation / search)
+    ↓
+Visual route appears: SFO ✈️ CDG
+    ↓
+Selects travel dates
+    ↓
+Taps "Continue"
+    ↓
+Add Travelers step (can scan ID here if needed)
+    ↓
+Search & Summary
 ```
 
 ---
 
-## Files Affected
+## What Stays the Same
 
-| File | Action |
-|------|--------|
-| `supabase/functions/generate-itinerary/index.ts` | Redeploy only (no code changes) |
-
----
-
-## What the Edge Function Does
-
-Once active, the `generate-itinerary` function:
-
-1. Receives trip details (destination, dates, travelers, accommodation)
-2. Builds a detailed prompt for the AI
-3. Calls `ai.gateway.lovable.dev` with Gemini 3 Flash
-4. Uses function calling to get structured output:
-   - Overview (1-2 sentences)
-   - Highlights (3-4 items)
-   - Days array with activities (time, title, description, type, cost, tips)
-5. Saves the itinerary JSON to the `trips.itinerary` column
-6. Updates `itinerary_status` to "complete"
+- AirportAutocomplete component (unchanged)
+- Airport search logic (unchanged)
+- Geolocation detection (unchanged)
+- Visual route animation (unchanged)
+- Date range picker (unchanged)
+- SearchingStep and TripSummaryStep (unchanged)
 
 ---
 
-## Timeline
+## Technical Notes
 
-This is a deployment-only fix - no code modifications required. The trip at `/trip/73532747-1d02-444b-a0d6-8ac78e9752a7` should display its itinerary once the function is redeployed.
+- The `organizerName` will default to "Traveler" until they add their info at the travelers step
+- ID scanning becomes optional - users can add travelers manually
+- The existing `TravelerInfo` type can be captured at the Add Travelers step instead
+
