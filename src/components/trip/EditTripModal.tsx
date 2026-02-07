@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, Plus, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -15,11 +15,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Airport } from "@/lib/airportSearch";
-import { TripResult, Traveler } from "@/lib/tripTypes";
+import { TripResult, Traveler, AccommodationType } from "@/lib/tripTypes";
 import { searchTrip } from "@/lib/tripSearch";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateItinerary } from "@/lib/tripService";
+import { EditableTravelerCard } from "./EditableTravelerCard";
+import { UserSearchPicker } from "@/components/trip-wizard/UserSearchPicker";
+import { ManualTravelerForm } from "@/components/trip-wizard/ManualTravelerForm";
+import { PlatformUserConfirm } from "@/components/trip-wizard/PlatformUserConfirm";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { PlatformUser } from "@/lib/userService";
 
 interface EditTripModalProps {
   open: boolean;
@@ -30,6 +36,7 @@ interface EditTripModalProps {
   currentReturnDate: Date;
   travelers: Traveler[];
   tripId: string;
+  accommodationType?: AccommodationType;
   onUpdateComplete: (newData: {
     tripResult: TripResult;
     destination: Airport;
@@ -37,6 +44,7 @@ interface EditTripModalProps {
     departureDate: Date;
     returnDate: Date;
     expiresAt: string;
+    travelers: Traveler[];
   }) => void;
 }
 
@@ -49,34 +57,104 @@ export function EditTripModal({
   currentReturnDate,
   travelers,
   tripId,
+  accommodationType = "hotel",
   onUpdateComplete,
 }: EditTripModalProps) {
   const [destination, setDestination] = useState<Airport>(currentDestination);
   const [origin, setOrigin] = useState<Airport>(currentOrigin);
   const [departureDate, setDepartureDate] = useState<Date>(currentDepartureDate);
   const [returnDate, setReturnDate] = useState<Date>(currentReturnDate);
+  const [localTravelers, setLocalTravelers] = useState<Traveler[]>(travelers);
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Add traveler state
+  const [showUserSearch, setShowUserSearch] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [showUserConfirm, setShowUserConfirm] = useState(false);
+  const [pendingUser, setPendingUser] = useState<PlatformUser | null>(null);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (open) {
+      setDestination(currentDestination);
+      setOrigin(currentOrigin);
+      setDepartureDate(currentDepartureDate);
+      setReturnDate(currentReturnDate);
+      setLocalTravelers(travelers);
+      setShowUserSearch(false);
+      setShowManualForm(false);
+      setShowUserConfirm(false);
+      setPendingUser(null);
+    }
+  }, [open, currentDestination, currentOrigin, currentDepartureDate, currentReturnDate, travelers]);
+
+  const handleSelectUser = useCallback((user: PlatformUser) => {
+    setPendingUser(user);
+    setShowUserSearch(false);
+    setShowUserConfirm(true);
+  }, []);
+
+  const handleConfirmPlatformUser = useCallback((user: PlatformUser, userOrigin: Airport) => {
+    const newTraveler: Traveler = {
+      id: crypto.randomUUID(),
+      name: user.full_name || "Unknown User",
+      origin: userOrigin,
+      isOrganizer: false,
+      user_id: user.id,
+      avatar_url: user.avatar_url || undefined,
+    };
+    
+    setLocalTravelers(prev => [...prev, newTraveler]);
+    setPendingUser(null);
+    setShowUserConfirm(false);
+  }, []);
+
+  const handleAddManualTraveler = useCallback((name: string, travelerOrigin: Airport) => {
+    const newTraveler: Traveler = {
+      id: crypto.randomUUID(),
+      name,
+      origin: travelerOrigin,
+      isOrganizer: false,
+    };
+    
+    setLocalTravelers(prev => [...prev, newTraveler]);
+    setShowManualForm(false);
+  }, []);
+
+  const handleRemoveTraveler = useCallback((id: string) => {
+    setLocalTravelers(prev => prev.filter(t => t.id !== id));
+  }, []);
 
   const handleUpdate = useCallback(async () => {
+    if (localTravelers.length === 0) {
+      toast({
+        title: "No travelers",
+        description: "Please add at least one traveler.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUpdating(true);
 
     try {
       // Re-search with new parameters
       const searchResult = await searchTrip({
         organizer: {
-          first_name: travelers[0]?.name.split(" ")[0] || "Traveler",
-          last_name: travelers[0]?.name.split(" ").slice(1).join(" ") || "",
+          first_name: localTravelers[0]?.name.split(" ")[0] || "Traveler",
+          last_name: localTravelers[0]?.name.split(" ").slice(1).join(" ") || "",
           document_type: "passport",
           confidence: "high",
         },
         destination,
         origin,
-        travelers: travelers.map(t => ({
+        travelers: localTravelers.map(t => ({
           ...t,
           origin: t.isOrganizer ? origin : t.origin,
         })),
         departureDate,
         returnDate,
+        accommodationType,
       });
 
       if (!searchResult.success || !searchResult.data) {
@@ -110,6 +188,16 @@ export function EditTripModal({
           link_expires_at: newExpiration.toISOString(),
           itinerary_status: "pending",
           itinerary: null,
+          travelers: localTravelers.map(t => ({
+            traveler_name: t.name,
+            origin: t.origin.iata,
+            destination: destination.iata,
+            flight_cost: 0,
+            accommodation_share: 0,
+            subtotal: 0,
+            user_id: t.user_id,
+            avatar_url: t.avatar_url,
+          })) as never,
         } as never)
         .eq("id", tripId);
 
@@ -130,7 +218,7 @@ export function EditTripModal({
         destination.country,
         format(departureDate, "yyyy-MM-dd"),
         format(returnDate, "yyyy-MM-dd"),
-        travelers.length,
+        localTravelers.length,
         searchResult.data.accommodation?.name
       );
 
@@ -140,7 +228,7 @@ export function EditTripModal({
           tripId,
           destinationCity: destination.city,
           destinationCountry: destination.country,
-          travelers: travelers.map(t => ({
+          travelers: localTravelers.map(t => ({
             name: t.name,
             avatar_url: t.avatar_url || null,
           })),
@@ -163,6 +251,7 @@ export function EditTripModal({
         departureDate,
         returnDate,
         expiresAt: newExpiration.toISOString(),
+        travelers: localTravelers,
       });
 
       onOpenChange(false);
@@ -181,130 +270,223 @@ export function EditTripModal({
     origin,
     departureDate,
     returnDate,
-    travelers,
+    localTravelers,
     tripId,
+    accommodationType,
     onUpdateComplete,
     onOpenChange,
   ]);
 
+  // Get existing user IDs to exclude from search
+  const existingUserIds = localTravelers
+    .filter(t => t.user_id)
+    .map(t => t.user_id!);
+
+  const handleManualEntry = useCallback(() => {
+    setShowUserSearch(false);
+    setShowManualForm(true);
+  }, []);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit Trip Details</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit Trip Details</DialogTitle>
+          </DialogHeader>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6 py-4"
-        >
-          {/* Destination */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Destination
-            </label>
-            <AirportAutocomplete
-              value={destination}
-              onChange={setDestination}
-              placeholder="Where to?"
-            />
-          </div>
+          <ScrollArea className="flex-1 pr-4 -mr-4">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6 py-4"
+            >
+              {/* Destination */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Destination
+                </label>
+                <AirportAutocomplete
+                  value={destination}
+                  onChange={setDestination}
+                  placeholder="Where to?"
+                />
+              </div>
 
-          {/* Origin */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Departing From
-            </label>
-            <AirportAutocomplete
-              value={origin}
-              onChange={setOrigin}
-              placeholder="Your city"
-            />
-          </div>
+              {/* Origin */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Departing From
+                </label>
+                <AirportAutocomplete
+                  value={origin}
+                  onChange={setOrigin}
+                  placeholder="Your city"
+                />
+              </div>
 
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Departure
-              </label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !departureDate && "text-muted-foreground"
-                    )}
+              {/* Date Range */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Departure
+                  </label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !departureDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {departureDate ? format(departureDate, "MMM d") : "Select"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={departureDate}
+                        onSelect={(date) => date && setDepartureDate(date)}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Return
+                  </label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !returnDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {returnDate ? format(returnDate, "MMM d") : "Select"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={returnDate}
+                        onSelect={(date) => date && setReturnDate(date)}
+                        disabled={(date) => date <= departureDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Travelers Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-foreground">
+                    Travelers ({localTravelers.length})
+                  </label>
+                </div>
+
+                {/* Traveler Cards */}
+                <AnimatePresence mode="popLayout">
+                  {localTravelers.map((traveler) => (
+                    <EditableTravelerCard
+                      key={traveler.id}
+                      traveler={traveler}
+                      onRemove={traveler.isOrganizer ? undefined : () => handleRemoveTraveler(traveler.id)}
+                      isCompact
+                    />
+                  ))}
+                </AnimatePresence>
+
+                {/* Add Traveler Section */}
+                {!showManualForm ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowUserSearch(true)}
+                      className="flex-1"
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Find User
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowManualForm(true)}
+                      className="flex-1"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Manually
+                    </Button>
+                  </div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {departureDate ? format(departureDate, "MMM d") : "Select"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={departureDate}
-                    onSelect={(date) => date && setDepartureDate(date)}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+                    <ManualTravelerForm
+                      defaultOrigin={origin}
+                      onAdd={handleAddManualTraveler}
+                      onCancel={() => setShowManualForm(false)}
+                    />
+                  </motion.div>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Return
-              </label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !returnDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {returnDate ? format(returnDate, "MMM d") : "Select"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={returnDate}
-                    onSelect={(date) => date && setReturnDate(date)}
-                    disabled={(date) => date <= departureDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
+              {/* Update Button */}
+              <Button
+                onClick={handleUpdate}
+                disabled={isUpdating || localTravelers.length === 0}
+                className="w-full h-12 rounded-xl text-base font-medium"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Trip"
+                )}
+              </Button>
 
-          {/* Update Button */}
-          <Button
-            onClick={handleUpdate}
-            disabled={isUpdating}
-            className="w-full h-12 rounded-xl text-base font-medium"
-          >
-            {isUpdating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              "Update Trip"
-            )}
-          </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Updating will refresh prices and reset the 24-hour timer
+              </p>
+            </motion.div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
-          <p className="text-xs text-muted-foreground text-center">
-            Updating will refresh prices and reset the 24-hour timer
-          </p>
-        </motion.div>
-      </DialogContent>
-    </Dialog>
+      {/* User Search Sheet */}
+      <UserSearchPicker
+        open={showUserSearch}
+        onOpenChange={setShowUserSearch}
+        onSelectUser={handleSelectUser}
+        onManualEntry={handleManualEntry}
+        excludeUserIds={existingUserIds}
+      />
+
+      {/* Platform User Confirm Sheet */}
+      <PlatformUserConfirm
+        user={pendingUser}
+        defaultOrigin={origin}
+        open={showUserConfirm}
+        onConfirm={handleConfirmPlatformUser}
+        onCancel={() => {
+          setPendingUser(null);
+          setShowUserConfirm(false);
+        }}
+      />
+    </>
   );
 }

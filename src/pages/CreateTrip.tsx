@@ -297,6 +297,7 @@ export default function CreateTrip() {
                 itineraryStatus={itineraryStatus}
                 shareCode={shareCode}
                 expiresAt={expiresAt}
+                accommodationType={accommodationType}
               />
             </motion.div>
           )}
