@@ -254,8 +254,10 @@ export default function CreateTrip() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <AddTravelersStep
+            <AddTravelersStep
                 organizerName={organizerName}
+                organizerId={user?.id}
+                organizerAvatarUrl={profile?.avatar_url || undefined}
                 defaultOrigin={origin}
                 destination={destination}
                 onContinue={handleTravelersContinue}

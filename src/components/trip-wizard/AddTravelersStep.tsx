@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 
 interface AddTravelersStepProps {
   organizerName: string;
+  organizerId?: string;
+  organizerAvatarUrl?: string;
   defaultOrigin: Airport;
   destination: Airport;
   onContinue: (travelers: Traveler[], accommodationType: AccommodationType) => void;
@@ -21,6 +23,8 @@ interface AddTravelersStepProps {
 
 export function AddTravelersStep({
   organizerName,
+  organizerId,
+  organizerAvatarUrl,
   defaultOrigin,
   destination,
   onContinue,
@@ -32,6 +36,8 @@ export function AddTravelersStep({
       name: organizerName || "You",
       origin: defaultOrigin,
       isOrganizer: true,
+      user_id: organizerId,
+      avatar_url: organizerAvatarUrl,
     },
   ]);
   
