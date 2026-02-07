@@ -1,195 +1,149 @@
 
 
-# Add Reactions to Public Itinerary and Reorganize Cost Layout
+# Itinerary-First Layout with Reactions on TripReadyStep
 
 ## Overview
-This plan adds thumbs up/down reactions to the public trip itinerary (shared link view) so all travelers can vote on activities, and moves the cost breakdown section below the itinerary so users see what they're doing first, then the cost.
+This plan reorganizes the TripReadyStep page (the one with the countdown timer) to:
+1. Show the itinerary before the cost breakdown
+2. Enable thumbs up/down reactions on individual itinerary activities
+3. Display minimalistic reaction counts on the day navigation buttons
 
 ---
 
-## Current Architecture
+## Current Layout (TripReadyStep.tsx)
 
 ```text
-TripDashboard (organizer)          TripView (public shared link)
-├── DashboardItineraryView          ├── ItineraryView
-│   └── DashboardActivityCard       │   └── DayCard
-│       └── ReactionBubbles ✓       │       └── ActivityBubble ✗
-└── Cost Summary (simple)           └── CostSummary (detailed)
+1. Countdown Timer
+2. AI Group Image
+3. Destination Card (with edit)
+4. Traveler Payment Status
+5. Cost Summary          ← Will move AFTER itinerary
+6. Your Itinerary        ← Will move BEFORE cost
+7. Share Button
 ```
 
-**Problem**: The public `TripView` page doesn't have reactions, only the organizer dashboard does.
+## Target Layout
 
----
-
-## Part 1: Add Reactions to ActivityBubble
-
-### Changes to ActivityBubble.tsx
-
-Add props to support reactions:
-
-```typescript
-interface ActivityBubbleProps {
-  activity: Activity;
-  index: number;
-  dayNumber: number;               // NEW
-  reactions?: ReactionCounts;       // NEW
-  onReact?: (reaction: 'thumbs_up' | 'thumbs_down') => void;  // NEW
-  canReact?: boolean;               // NEW
-}
-```
-
-Add reaction UI at the bottom of each activity bubble (after the tip):
-
-```typescript
-{/* Reactions Row */}
-{onReact && (
-  <div className="flex items-center justify-end pt-2 mt-2 border-t border-border/30">
-    <ReactionBubbles
-      counts={reactions || { thumbs_up: 0, thumbs_down: 0, user_reaction: null }}
-      onReact={onReact}
-      disabled={!canReact}
-    />
-  </div>
-)}
+```text
+1. Countdown Timer
+2. AI Group Image
+3. Destination Card (with edit)
+4. Traveler Payment Status
+5. Your Itinerary        ← Moved up, with reactions
+6. Cost Summary          ← Moved down
+7. Share Button
 ```
 
 ---
 
-## Part 2: Wire Reactions Through Components
+## Part 1: Swap Order of Itinerary and Cost Summary
 
-### DayCard.tsx Updates
-
-Pass reactions and callbacks through to ActivityBubble:
-
-```typescript
-interface DayCardProps {
-  day: DayPlan;
-  isActive: boolean;
-  tripId?: string;                  // NEW
-  reactions?: ReactionsMap;          // NEW
-  onReact?: (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => void;  // NEW
-  canReact?: boolean;                // NEW
-}
-
-// In render:
-<ActivityBubble
-  activity={activity}
-  index={index}
-  dayNumber={day.day_number}
-  reactions={reactions?.get(getReactionKey(day.day_number, index))}
-  onReact={(reaction) => onReact?.(day.day_number, index, reaction)}
-  canReact={canReact}
-/>
-```
-
-### ItineraryView.tsx Updates
-
-Accept and pass reactions props:
-
-```typescript
-interface ItineraryViewProps {
-  itinerary: Itinerary;
-  tripId?: string;
-  reactions?: ReactionsMap;          // NEW
-  onReact?: (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => void;  // NEW
-  canReact?: boolean;                // NEW
-  // ... existing props
-}
-```
+In `TripReadyStep.tsx`, move the itinerary section (lines 368-392) above the cost summary section (lines 347-366).
 
 ---
 
-## Part 3: Integrate Reactions in TripView
+## Part 2: Add Reactions to TripReadyStep
 
-### TripView.tsx Updates
-
-1. Import reaction functions and hooks
-2. Add reaction state management (similar to TripDashboard)
-3. Subscribe to realtime reaction updates
-4. Pass reactions to ItineraryView
+### New State and Logic Required
 
 ```typescript
-// New imports
+// Import reaction functions
 import { fetchReactions, subscribeToReactions, addReaction, removeReaction, ReactionsMap, getReactionKey } from "@/lib/reactionService";
 import { useAuth } from "@/hooks/useAuth";
 
-// New state
+// Add state
 const { user } = useAuth();
 const [reactions, setReactions] = useState<ReactionsMap>(new Map());
 
-// Load and subscribe to reactions
+// Load reactions
 const loadReactions = useCallback(async () => {
   if (!tripId) return;
   const reactionsData = await fetchReactions(tripId, user?.id);
   setReactions(reactionsData);
 }, [tripId, user?.id]);
 
-// Handle reaction toggle
+// Subscribe to realtime updates
+useEffect(() => {
+  loadReactions();
+  const unsubscribe = subscribeToReactions(tripId, loadReactions);
+  return unsubscribe;
+}, [tripId, loadReactions]);
+
+// Handle reaction
 const handleReact = async (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => {
-  if (!tripId || !user) {
-    toast({ title: "Sign in required", description: "Please sign in to react", variant: "destructive" });
+  if (!user) {
+    toast({ title: "Sign in required", variant: "destructive" });
     return;
   }
-  
   const key = getReactionKey(dayNumber, activityIndex);
-  const currentReaction = reactions.get(key)?.user_reaction;
+  const current = reactions.get(key)?.user_reaction;
   
-  if (currentReaction === reaction) {
+  if (current === reaction) {
     await removeReaction(tripId, dayNumber, activityIndex);
   } else {
     await addReaction(tripId, dayNumber, activityIndex, reaction);
   }
-  
   loadReactions();
 };
+```
 
-// Pass to ItineraryView
+### Pass Props to ItineraryView
+
+```typescript
 <ItineraryView 
-  itinerary={trip.itinerary}
-  tripId={trip.id}
+  itinerary={itinerary}
+  tripId={tripId}
   reactions={reactions}
   onReact={handleReact}
   canReact={!!user}
-  ...
 />
 ```
 
 ---
 
-## Part 4: Reorganize Layout - Itinerary First, Then Costs
+## Part 3: Add Reaction Counts to Day Buttons
 
-### Current TripView Layout:
-```text
-1. Hero Header
-2. Itinerary Section
-3. Cost Breakdown Section  ← Already in correct order!
-4. Share Section (sticky)
-```
+### Update ItineraryView.tsx
 
-Actually the current layout already shows itinerary first, then costs. But I'll verify the CostSummary shows the itemized activities after the base costs.
-
-### CostSummary Already Shows:
-1. Base Trip Total (collapsed header)
-2. When expanded:
-   - Accommodation details
-   - Activities & Experiences (itemized by day)
-   - Per Person Breakdown
-
-**This is correct** - shows base cost first, then activity costs can be added.
-
----
-
-## Part 5: Remove LIVE Badge from DashboardActivityCard
-
-I noticed `DashboardActivityCard.tsx` still shows the LIVE badge (line 88-92). Remove it for consistency:
+Add a helper function to compute total reactions per day:
 
 ```typescript
-// Remove these lines (88-92):
-{activity.is_live_event && (
-  <span className="text-[10px] sm:text-xs font-medium text-destructive px-2 py-0.5 sm:py-1 bg-destructive/10 rounded-full">
-    🎫 Live
-  </span>
-)}
+// Helper to count reactions for a day
+const getDayReactionCount = (dayNumber: number): number => {
+  if (!reactions) return 0;
+  let count = 0;
+  const day = itinerary.days.find(d => d.day_number === dayNumber);
+  if (!day) return 0;
+  
+  day.activities.forEach((_, index) => {
+    const key = getReactionKey(dayNumber, index);
+    const reaction = reactions.get(key);
+    if (reaction) {
+      count += reaction.thumbs_up + reaction.thumbs_down;
+    }
+  });
+  return count;
+};
+```
+
+### Update Day Button UI
+
+Show a small badge when there are reactions:
+
+```typescript
+<button className={cn("...", selectedDay === day.day_number ? "..." : "...")}>
+  <span>Day {day.day_number}</span>
+  {getDayReactionCount(day.day_number) > 0 && (
+    <span className="ml-1.5 text-xs opacity-70">
+      {getDayReactionCount(day.day_number)}
+    </span>
+  )}
+</button>
+```
+
+Visual result:
+```text
+[ Day 1 · 5 ]  [ Day 2 ]  [ Day 3 · 2 ]
 ```
 
 ---
@@ -198,50 +152,33 @@ I noticed `DashboardActivityCard.tsx` still shows the LIVE badge (line 88-92). R
 
 | File | Changes |
 |------|---------|
-| `src/components/trip/ActivityBubble.tsx` | Add reactions props and ReactionBubbles component |
-| `src/components/trip/DayCard.tsx` | Pass tripId, reactions, onReact, canReact to ActivityBubble |
-| `src/components/trip/ItineraryView.tsx` | Accept and pass reactions props |
-| `src/pages/TripView.tsx` | Add reaction state, load/subscribe to reactions, pass to ItineraryView |
-| `src/components/trip/DashboardActivityCard.tsx` | Remove LIVE badge |
-
----
-
-## Data Flow
-
-### Public Trip View Reactions Flow
-```text
-1. User opens shared trip link (/trip/{id})
-2. TripView loads trip data + reactions
-3. Subscribes to realtime reaction updates
-4. User taps thumbs up/down on activity
-   └─ If not signed in → Show "sign in required" toast
-   └─ If signed in → Toggle reaction in database
-5. Realtime subscription triggers → Reload reactions
-6. All other viewers see updated counts instantly
-```
-
-### Realtime Updates
-Both the organizer dashboard and public trip view subscribe to the same `activity_reactions` table. When anyone reacts:
-1. Database updates
-2. Realtime event fires
-3. Both views reload reactions
-4. UI updates for all viewers
+| `src/components/trip-wizard/TripReadyStep.tsx` | Swap order of itinerary/cost; add reaction state, handlers, and props to ItineraryView |
+| `src/components/trip/ItineraryView.tsx` | Add day reaction count helper; show count on day buttons |
 
 ---
 
 ## Updated UI Preview
 
-### Activity Bubble (Public View)
+### Day Navigation with Reaction Counts
+```text
+┌─────────────────────────────────────────────────┐
+│  [Day 1 · 3]  [Day 2]  [Day 3 · 7]              │
+└─────────────────────────────────────────────────┘
+           ↑              ↑
+       3 reactions    7 reactions
+       on Day 1       on Day 3
+```
+
+### Activity with Reactions
 ```text
 ┌──────────────────────────────────────────────────┐
 │  9:00 AM                                          │
 │  ┌──────────────────────────────────────────────┐ │
 │  │ 🏛️  Eiffel Tower                              │ │
 │  │     Marvel at Paris's iconic iron lady        │ │
-│  │                                               │ │
 │  │     ~$30/person  💡 Book skip-the-line!       │ │
 │  │     ─────────────────────────────────────     │ │
-│  │                         [👍 3] [👎 0]         │ │
+│  │                         [👍 2] [👎 1]         │ │
 │  └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
 ```
@@ -252,9 +189,8 @@ Both the organizer dashboard and public trip view subscribe to the same `activit
 
 | Change | Impact |
 |--------|--------|
-| Add reactions to ActivityBubble | Public trip viewers can vote |
-| Wire reactions through components | Clean prop drilling |
-| Integrate in TripView | Full reaction support on shared links |
-| Realtime subscriptions | Everyone sees live updates |
-| Remove LIVE badge from dashboard | Consistent with ActivityBubble cleanup |
+| Move itinerary above cost summary | Users see activities before prices |
+| Add reaction handlers to TripReadyStep | Trip creator can react to activities |
+| Wire reactions to ItineraryView | Same reaction UI as public view |
+| Show counts on day buttons | Quick visibility of which days have engagement |
 
