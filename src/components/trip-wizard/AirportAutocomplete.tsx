@@ -100,11 +100,12 @@ export function AirportAutocomplete({
       )}
       
       <div className="relative">
-        {value ? (
+        {value && !isOpen ? (
           <button
             type="button"
             onClick={() => {
               setIsOpen(true);
+              setQuery("");
               setTimeout(() => inputRef.current?.focus(), 0);
             }}
             className="w-full flex items-center gap-3 px-4 py-3 bg-muted/50 rounded-xl border border-border text-left hover:bg-muted/70 transition-colors"
