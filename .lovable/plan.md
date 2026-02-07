@@ -1,97 +1,75 @@
 
-
-# Accommodation Selection and Button Text Update
+# Edit Travelers in Trip Details + Fix AI Image Generation
 
 ## Overview
-Add accommodation type selection (Airbnb or Hotel) to the "Add Travelers" step and change the button text from "Search Flights" to "Create a Trip". When users select an accommodation type, the AI search will find matching options based on their preference.
-
-## Current State
-- Button text says "Search Flights"
-- No accommodation preference selection
-- The edge function automatically searches for a "mid-range hotel/accommodation"
-
-## Proposed Changes
-
-### Visual Layout
-```text
-┌─────────────────────────────────────┐
-│     Who's coming along?             │
-│                                     │
-│  [Traveler Cards...]                │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │  + Add Traveler             │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ── Where to stay ──                │
-│                                     │
-│  ┌──────────┐    ┌──────────┐       │
-│  │  🏠      │    │  🏨      │       │
-│  │ Airbnb   │    │  Hotel   │       │
-│  │ (○)      │    │  (●)     │       │
-│  └──────────┘    └──────────┘       │
-│                                     │
-│  [Trip Summary]                     │
-│                                     │
-│  [Back]        [Create a Trip →]    │
-│                                     │
-└─────────────────────────────────────┘
-```
+This plan addresses two features:
+1. **Edit Travelers**: Extend the EditTripModal to allow adding, editing, and removing travelers (not just destination/dates)
+2. **Fix AI Image Generation**: Make the `travel-media` storage bucket public so generated images display correctly
 
 ---
 
-## Technical Implementation
+## Current Issues
 
-### Step 1: Update AddTravelersStep Component
-**File:** `src/components/trip-wizard/AddTravelersStep.tsx`
+### Storage Bucket Problem
+The `travel-media` bucket is set to `public: false`. When the edge function generates an image and calls `getPublicUrl()`, it returns a URL that requires authentication. Since the frontend can't access these URLs without auth tokens, the images fail to load.
 
-**Changes:**
-1. Add `accommodationType` state: `"airbnb" | "hotel"`
-2. Add two selectable cards below "Add Traveler" button
-3. Change button text from "Search Flights" to "Create a Trip"
-4. Pass `accommodationType` to `onContinue` callback
+**Evidence from database:**
+- `public: false` for `travel-media` bucket
+- Edge function logs show successful generation: "Image uploaded successfully: https://..."
+- Direct API test returned success with valid imageUrl
 
-**New Props Interface:**
-```typescript
-interface AddTravelersStepProps {
-  organizerName: string;
-  defaultOrigin: Airport;
-  destination: Airport;
-  onContinue: (travelers: Traveler[], accommodationType: AccommodationType) => void;
-  onBack: () => void;
-}
+### EditTripModal Limitation
+Currently only allows editing destination, origin, and dates. Travelers are passed as a prop but cannot be modified.
 
-type AccommodationType = "airbnb" | "hotel";
+---
+
+## Solution
+
+### Part 1: Fix Storage Access
+
+**Database Migration Required:**
+Make the `travel-media` bucket public for share-images folder, or update the bucket to be public.
+
+Alternatively, generate signed URLs instead of public URLs.
+
+**Recommended Approach:** Make the bucket public since share images are meant to be publicly shareable.
+
+```sql
+UPDATE storage.buckets 
+SET public = true 
+WHERE name = 'travel-media';
 ```
 
-### Step 2: Update CreateTrip Page
-**File:** `src/pages/CreateTrip.tsx`
+This also requires adding a public read policy for the `share-images` folder.
 
-**Changes:**
-1. Add `accommodationType` state
-2. Update `handleTravelersContinue` to accept and store accommodation type
-3. Pass accommodation type to `searchTrip`
+### Part 2: Add Traveler Management to EditTripModal
 
-### Step 3: Update Trip Search Types
-**File:** `src/lib/tripTypes.ts`
+**Current Component Structure:**
+```
+EditTripModal
+├── Destination (AirportAutocomplete)
+├── Origin (AirportAutocomplete)
+├── Departure Date (Calendar)
+├── Return Date (Calendar)
+└── Update Button
+```
 
-**Changes:**
-- Add `accommodationType?: "airbnb" | "hotel"` to `TripSearch` interface
-
-### Step 4: Update Trip Search Function
-**File:** `src/lib/tripSearch.ts`
-
-**Changes:**
-- Include `accommodationType` in the request to the edge function
-
-### Step 5: Update Search Trip Edge Function
-**File:** `supabase/functions/search-trip/index.ts`
-
-**Changes:**
-1. Accept `accommodationType` in request body
-2. Modify prompt based on selection:
-   - **Airbnb**: "Find a well-rated Airbnb or vacation rental that can accommodate the group..."
-   - **Hotel**: "Find a mid-range hotel with rooms for the group..."
+**New Structure:**
+```
+EditTripModal (scrollable content)
+├── Destination (AirportAutocomplete)
+├── Origin (AirportAutocomplete)
+├── Departure Date (Calendar)
+├── Return Date (Calendar)
+├── ── Travelers Section ──
+│   ├── TravelerCard (organizer - not removable)
+│   ├── TravelerCard (guest - editable origin, removable)
+│   ├── TravelerCard (guest - editable origin, removable)
+│   └── + Add Traveler button
+├── UserSearchPicker (sheet)
+├── ManualTravelerForm (inline)
+└── Update Button
+```
 
 ---
 
@@ -99,93 +77,263 @@ type AccommodationType = "airbnb" | "hotel";
 
 | File | Changes |
 |------|---------|
-| `src/components/trip-wizard/AddTravelersStep.tsx` | Add accommodation selector, change button text |
-| `src/pages/CreateTrip.tsx` | Handle accommodation type in state and search |
-| `src/lib/tripTypes.ts` | Add `accommodationType` to interfaces |
-| `src/lib/tripSearch.ts` | Pass accommodation type to edge function |
-| `supabase/functions/search-trip/index.ts` | Use accommodation type in prompt |
+| `src/components/trip/EditTripModal.tsx` | Add travelers section with add/edit/remove capability |
+| `src/components/trip-wizard/TripReadyStep.tsx` | Accept updated travelers in onUpdateComplete callback |
+| `src/pages/CreateTrip.tsx` | Handle traveler updates from edit modal |
+
+## Database Changes
+
+| Change | Purpose |
+|--------|---------|
+| Make `travel-media` bucket public | Allow share images to be viewed without authentication |
+| Add storage policy for public read on `share-images/*` | Security policy for public access |
 
 ---
 
-## Component Design Details
+## Detailed Implementation
 
-### Accommodation Selector Cards
+### EditTripModal Component Updates
+
+**New Props Interface:**
 ```typescript
-// Clean, minimal card design
-<div className="space-y-3 mb-6">
-  <p className="text-sm text-muted-foreground">Where to stay</p>
-  <div className="grid grid-cols-2 gap-3">
-    <button 
-      onClick={() => setAccommodationType("airbnb")}
-      className={cn(
-        "p-4 rounded-2xl border-2 transition-all",
-        accommodationType === "airbnb" 
-          ? "border-primary bg-primary/5" 
-          : "border-border hover:border-primary/50"
-      )}
-    >
-      <Home className="w-6 h-6 mx-auto mb-2" />
-      <span className="text-sm font-medium">Airbnb</span>
-    </button>
-    <button 
-      onClick={() => setAccommodationType("hotel")}
-      className={...}
-    >
-      <Building2 className="w-6 h-6 mx-auto mb-2" />
-      <span className="text-sm font-medium">Hotel</span>
-    </button>
-  </div>
-</div>
+interface EditTripModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentDestination: Airport;
+  currentOrigin: Airport;
+  currentDepartureDate: Date;
+  currentReturnDate: Date;
+  travelers: Traveler[];  // Now editable
+  tripId: string;
+  onUpdateComplete: (newData: {
+    tripResult: TripResult;
+    destination: Airport;
+    origin: Airport;
+    departureDate: Date;
+    returnDate: Date;
+    expiresAt: string;
+    travelers: Traveler[];  // NEW: Return updated travelers
+  }) => void;
+}
 ```
 
-### Button Text Change
+**New State:**
 ```typescript
-<Button onClick={handleContinue} className="...">
-  Create a Trip
-  <ArrowRight className="w-4 h-4 ml-2" />
-</Button>
+const [localTravelers, setLocalTravelers] = useState<Traveler[]>(travelers);
+const [showUserSearch, setShowUserSearch] = useState(false);
+const [showManualForm, setShowManualForm] = useState(false);
+const [pendingUser, setPendingUser] = useState<PlatformUser | null>(null);
+```
+
+**New Functions:**
+```typescript
+const addPlatformUser = (user: PlatformUser, origin: Airport) => {
+  const newTraveler: Traveler = {
+    id: crypto.randomUUID(),
+    name: user.full_name || "Unknown User",
+    origin,
+    isOrganizer: false,
+    user_id: user.id,
+    avatar_url: user.avatar_url || undefined,
+  };
+  setLocalTravelers(prev => [...prev, newTraveler]);
+};
+
+const addManualTraveler = (name: string, origin: Airport) => {
+  const newTraveler: Traveler = {
+    id: crypto.randomUUID(),
+    name,
+    origin,
+    isOrganizer: false,
+  };
+  setLocalTravelers(prev => [...prev, newTraveler]);
+};
+
+const removeTraveler = (id: string) => {
+  setLocalTravelers(prev => prev.filter(t => t.id !== id));
+};
+
+const updateTravelerOrigin = (id: string, newOrigin: Airport) => {
+  setLocalTravelers(prev => prev.map(t => 
+    t.id === id ? { ...t, origin: newOrigin } : t
+  ));
+};
+```
+
+**UI Layout:**
+```
+┌─────────────────────────────────────┐
+│ Edit Trip Details              [X]  │
+├─────────────────────────────────────┤
+│  Destination                        │
+│  [Airport Autocomplete]             │
+│                                     │
+│  Departing From                     │
+│  [Airport Autocomplete]             │
+│                                     │
+│  ┌───────────┐    ┌───────────┐     │
+│  │ Departure │    │  Return   │     │
+│  │  Feb 15   │    │  Feb 22   │     │
+│  └───────────┘    └───────────┘     │
+│                                     │
+│  ── Travelers (3) ──                │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ 👤 John Smith (You)   ATL   │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ 👤 Jane Doe    [ATL ▾] [X]  │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ 👤 Bob Wilson  [LAX ▾] [X]  │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │  + Add Traveler             │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │     Update Trip             │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  Updating will refresh prices...    │
+└─────────────────────────────────────┘
+```
+
+### EditableTravelerCard Sub-Component
+
+Create inline within EditTripModal (or as separate component):
+
+```typescript
+interface EditableTravelerCardProps {
+  traveler: Traveler;
+  onRemove?: () => void;
+  onOriginChange?: (origin: Airport) => void;
+}
+```
+
+Features:
+- Shows avatar/fallback, name, origin
+- Organizer card: Read-only (no remove button)
+- Guest cards: Origin dropdown + remove button
+- Compact layout for modal context
+
+### Update Flow
+
+1. User opens edit modal
+2. Modal initializes with current travelers
+3. User can:
+   - Add new traveler (search or manual)
+   - Remove non-organizer traveler
+   - Change traveler's origin airport
+4. User updates destination/dates as before
+5. User clicks "Update Trip"
+6. System:
+   - Re-runs searchTrip with updated travelers
+   - Updates database with new costs
+   - Regenerates itinerary
+   - Regenerates group image
+   - Resets 24-hour timer
+7. Modal closes, UI updates
+
+### Database Update for Travelers
+
+When updating the trip, also update the travelers JSONB column:
+
+```typescript
+const { error: updateError } = await supabase
+  .from("trips")
+  .update({
+    destination_city: destination.city,
+    // ... other fields
+    travelers: localTravelers.map(t => ({
+      traveler_name: t.name,
+      origin: t.origin.iata,
+      destination: destination.iata,
+      flight_cost: 0, // Will be recalculated
+      accommodation_share: 0,
+      subtotal: 0,
+      user_id: t.user_id,
+      avatar_url: t.avatar_url,
+    })),
+    // Update with new breakdown from search
+    cost_breakdown: searchResult.data.breakdown,
+  })
+  .eq("id", tripId);
 ```
 
 ---
 
-## Edge Function Prompt Updates
+## Storage Fix Implementation
 
-### For Airbnb Selection
-```text
-Please provide realistic current market estimates for:
-1. Round-trip flights for each traveler...
-2. A well-rated Airbnb or vacation rental that can comfortably accommodate ${travelers.length} guests. 
-   Look for entire homes/apartments with good reviews, modern amenities, and central location.
+### Migration SQL
+
+```sql
+-- Make travel-media bucket public
+UPDATE storage.buckets 
+SET public = true 
+WHERE name = 'travel-media';
+
+-- Add public read policy for share-images folder
+CREATE POLICY "Public can view share images"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'travel-media' AND (storage.foldername(name))[1] = 'share-images');
 ```
 
-### For Hotel Selection
-```text
-Please provide realistic current market estimates for:
-1. Round-trip flights for each traveler...
-2. A mid-range hotel (3-4 star) with enough rooms for the group.
-   Consider hotels with good location, breakfast included if possible, and standard amenities.
+This allows:
+- Anyone to view images in `share-images/` folder
+- Images remain uploadable only via service role (edge function)
+
+---
+
+## Components to Reuse
+
+| Component | Usage in EditTripModal |
+|-----------|------------------------|
+| `UserSearchPicker` | Search for platform users to add |
+| `ManualTravelerForm` | Add travelers by name |
+| `PlatformUserConfirm` | Confirm platform user with origin |
+| `AirportAutocomplete` | Change traveler's origin |
+| `TravelerCard` | Display travelers (with modifications for edit mode) |
+
+---
+
+## TripReadyStep Updates
+
+Update the callback to include travelers:
+
+```typescript
+const handleTripUpdate = useCallback((newData: {
+  tripResult: TripResult;
+  destination: Airport;
+  origin: Airport;
+  departureDate: Date;
+  returnDate: Date;
+  expiresAt: string;
+  travelers: Traveler[];  // NEW
+}) => {
+  setTripResult(newData.tripResult);
+  setDestination(newData.destination);
+  setOrigin(newData.origin);
+  setDepartureDate(newData.departureDate);
+  setReturnDate(newData.returnDate);
+  setExpiresAt(newData.expiresAt);
+  // Update travelers in parent via prop
+  onTravelersUpdate?.(newData.travelers);
+  setGroupImageKey(prev => prev + 1);
+}, []);
 ```
 
 ---
 
-## Data Flow
+## Summary
 
-```text
-1. User selects travelers
-2. User taps Airbnb or Hotel card (Hotel selected by default)
-3. User clicks "Create a Trip"
-4. onContinue(travelers, accommodationType) called
-5. CreateTrip stores accommodationType
-6. searchTrip() includes accommodationType
-7. Edge function adjusts prompt based on type
-8. AI returns accommodation matching preference
-9. Results displayed on Ready page
-```
-
----
-
-## Default Behavior
-- Hotel is selected by default (most common choice)
-- Selection is required (one must always be active)
-- Visual indicator shows which is selected
-
+| Task | Complexity | Impact |
+|------|------------|--------|
+| Make storage bucket public | Low | Fixes image display |
+| Add storage policy | Low | Security for public access |
+| Add traveler management to EditTripModal | Medium | Full edit capability |
+| Update TripReadyStep callbacks | Low | Data flow |
+| Update CreateTrip state management | Low | Handle traveler updates |
