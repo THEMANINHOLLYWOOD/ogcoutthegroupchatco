@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { TravelerCard } from "./TravelerCard";
 import { UserSearchPicker } from "./UserSearchPicker";
 import { ManualTravelerForm } from "./ManualTravelerForm";
+import { PlatformUserConfirm } from "./PlatformUserConfirm";
 import { Airport } from "@/lib/airportSearch";
 import { Traveler } from "@/lib/tripTypes";
 import { PlatformUser } from "@/lib/userService";
@@ -35,19 +36,21 @@ export function AddTravelersStep({
   
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
+  const [pendingUser, setPendingUser] = useState<PlatformUser | null>(null);
 
-  const addPlatformUser = useCallback((user: PlatformUser) => {
+  const addPlatformUser = useCallback((user: PlatformUser, origin: Airport) => {
     const newTraveler: Traveler = {
       id: crypto.randomUUID(),
       name: user.full_name || "Unknown User",
-      origin: defaultOrigin, // Default to organizer's origin for platform users
+      origin,
       isOrganizer: false,
       user_id: user.id,
       avatar_url: user.avatar_url || undefined,
     };
 
     setTravelers((prev) => [...prev, newTraveler]);
-  }, [defaultOrigin]);
+    setPendingUser(null);
+  }, []);
 
   const addManualTraveler = useCallback((name: string, origin: Airport) => {
     const newTraveler: Traveler = {
@@ -137,12 +140,24 @@ export function AddTravelersStep({
       <UserSearchPicker
         open={showUserSearch}
         onOpenChange={setShowUserSearch}
-        onSelectUser={addPlatformUser}
+        onSelectUser={(user) => {
+          setShowUserSearch(false);
+          setPendingUser(user);
+        }}
         onManualEntry={() => {
           setShowUserSearch(false);
           setShowManualForm(true);
         }}
         excludeUserIds={excludeUserIds}
+      />
+
+      {/* Platform User Confirmation */}
+      <PlatformUserConfirm
+        user={pendingUser}
+        defaultOrigin={defaultOrigin}
+        open={pendingUser !== null}
+        onConfirm={addPlatformUser}
+        onCancel={() => setPendingUser(null)}
       />
 
       {/* Trip Summary */}
