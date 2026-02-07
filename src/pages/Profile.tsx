@@ -8,9 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { PersonalInfoForm } from '@/components/profile/PersonalInfoForm';
 import { PhotoGallery } from '@/components/profile/PhotoGallery';
-import { TravelGallery } from '@/components/profile/TravelGallery';
 import { PlacesVisited } from '@/components/profile/PlacesVisited';
-import { TravelCompanions } from '@/components/profile/TravelCompanions';
+import { ProfileTrips } from '@/components/profile/ProfileTrips';
 
 const Profile = () => {
   const { profile, signOut } = useAuth();
@@ -66,18 +65,12 @@ const Profile = () => {
         <Tabs defaultValue="about" className="w-full">
           {/* Scrollable tab list for mobile */}
           <ScrollArea className="w-full -mx-4 px-4">
-            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-5 h-12 p-1 mb-6 gap-1">
+            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-4 h-12 p-1 mb-6 gap-1">
               <TabsTrigger 
                 value="about" 
                 className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
               >
                 About
-              </TabsTrigger>
-              <TabsTrigger 
-                value="companions" 
-                className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
-              >
-                Companions
               </TabsTrigger>
               <TabsTrigger 
                 value="photos" 
@@ -86,10 +79,10 @@ const Profile = () => {
                 Photos
               </TabsTrigger>
               <TabsTrigger 
-                value="travel" 
+                value="trips" 
                 className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
               >
-                Travel
+                Trips
               </TabsTrigger>
               <TabsTrigger 
                 value="places" 
@@ -115,16 +108,6 @@ const Profile = () => {
             </motion.div>
           </TabsContent>
 
-          <TabsContent value="companions" className="mt-0">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-            >
-              <TravelCompanions />
-            </motion.div>
-          </TabsContent>
-
           <TabsContent value="photos" className="mt-0">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -135,13 +118,13 @@ const Profile = () => {
             </motion.div>
           </TabsContent>
 
-          <TabsContent value="travel" className="mt-0">
+          <TabsContent value="trips" className="mt-0">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
             >
-              <TravelGallery />
+              <ProfileTrips />
             </motion.div>
           </TabsContent>
 
