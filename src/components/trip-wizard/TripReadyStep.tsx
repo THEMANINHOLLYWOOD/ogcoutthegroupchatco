@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Calendar, Users, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TripResult, Traveler, Itinerary, TravelerCost } from "@/lib/tripTypes";
+import { TripResult, Traveler, Itinerary, TravelerCost, AccommodationType } from "@/lib/tripTypes";
 import { Airport } from "@/lib/airportSearch";
 import { CountdownTimer } from "@/components/trip/CountdownTimer";
 import { TripGroupImage } from "@/components/trip/TripGroupImage";
@@ -18,7 +18,7 @@ interface TripReadyStepProps {
   tripId: string;
   tripResult: TripResult;
   destination: Airport;
-  origin: Airport;
+  origin: Airport | null;
   departureDate: Date;
   returnDate: Date;
   travelers: Traveler[];
@@ -26,6 +26,7 @@ interface TripReadyStepProps {
   itineraryStatus: 'pending' | 'generating' | 'complete' | 'failed';
   shareCode: string;
   expiresAt: string;
+  accommodationType?: AccommodationType;
   onTripUpdate?: (newData: {
     tripResult: TripResult;
     destination: Airport;
@@ -33,6 +34,7 @@ interface TripReadyStepProps {
     departureDate: Date;
     returnDate: Date;
     expiresAt: string;
+    travelers: Traveler[];
   }) => void;
 }
 
@@ -43,11 +45,12 @@ export function TripReadyStep({
   origin: initialOrigin,
   departureDate: initialDepartureDate,
   returnDate: initialReturnDate,
-  travelers,
+  travelers: initialTravelers,
   itinerary,
   itineraryStatus,
   shareCode,
   expiresAt: initialExpiresAt,
+  accommodationType = "hotel",
   onTripUpdate,
 }: TripReadyStepProps) {
   const [tripResult, setTripResult] = useState(initialTripResult);
@@ -56,6 +59,7 @@ export function TripReadyStep({
   const [departureDate, setDepartureDate] = useState(initialDepartureDate);
   const [returnDate, setReturnDate] = useState(initialReturnDate);
   const [expiresAt, setExpiresAt] = useState(initialExpiresAt);
+  const [travelers, setTravelers] = useState(initialTravelers);
   
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
   const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
@@ -203,6 +207,7 @@ export function TripReadyStep({
     departureDate: Date;
     returnDate: Date;
     expiresAt: string;
+    travelers: Traveler[];
   }) => {
     setTripResult(newData.tripResult);
     setDestination(newData.destination);
@@ -210,6 +215,7 @@ export function TripReadyStep({
     setDepartureDate(newData.departureDate);
     setReturnDate(newData.returnDate);
     setExpiresAt(newData.expiresAt);
+    setTravelers(newData.travelers);
     // Force re-render of group image
     setGroupImageKey(prev => prev + 1);
     onTripUpdate?.(newData);
@@ -368,17 +374,20 @@ export function TripReadyStep({
       </p>
 
       {/* Edit Trip Modal */}
-      <EditTripModal
-        open={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
-        currentDestination={destination}
-        currentOrigin={origin}
-        currentDepartureDate={departureDate}
-        currentReturnDate={returnDate}
-        travelers={travelers}
-        tripId={tripId}
-        onUpdateComplete={handleTripUpdate}
-      />
+      {origin && (
+        <EditTripModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          currentDestination={destination}
+          currentOrigin={origin}
+          currentDepartureDate={departureDate}
+          currentReturnDate={returnDate}
+          travelers={travelers}
+          tripId={tripId}
+          accommodationType={accommodationType}
+          onUpdateComplete={handleTripUpdate}
+        />
+      )}
     </motion.div>
   );
 }
