@@ -1,15 +1,11 @@
-import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Landmark, Utensils, Ticket, Plane, Coffee, Plus, Minus, Loader2 } from "lucide-react";
+import { Landmark, Utensils, Ticket, Plane, Coffee } from "lucide-react";
 import { Activity } from "@/lib/tripTypes";
 import { cn } from "@/lib/utils";
 
 interface ActivityBubbleProps {
   activity: Activity;
   index: number;
-  isSearching?: boolean;
-  onFindCheaper?: () => void;
-  onFindPricier?: () => void;
 }
 
 const typeIcons = {
@@ -31,11 +27,7 @@ const typeColors = {
 export function ActivityBubble({ 
   activity, 
   index, 
-  isSearching = false,
-  onFindCheaper,
-  onFindPricier,
 }: ActivityBubbleProps) {
-  const [isHovered, setIsHovered] = useState(false);
   const Icon = typeIcons[activity.type] || Landmark;
   const colorClasses = typeColors[activity.type] || typeColors.attraction;
   const hasCost = activity.estimated_cost !== undefined && activity.estimated_cost > 0;
@@ -51,8 +43,6 @@ export function ActivityBubble({
         damping: 25,
       }}
       className="flex gap-3"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Time */}
       <div className="w-16 flex-shrink-0 text-right">
@@ -110,88 +100,23 @@ export function ActivityBubble({
                   {activity.description}
                 </p>
                 
-                {/* Footer with cost, tip, and +/- controls */}
-                <div className="flex items-center justify-between mt-2 gap-2">
-                  <div className="flex items-center gap-4 flex-wrap flex-1">
-                    {hasCost && (
-                      <span className="text-xs font-medium text-primary">
-                        ~${activity.estimated_cost}/person
-                      </span>
-                    )}
-                    
-                    {activity.tip && (
-                      <span className="text-xs text-muted-foreground italic">
-                        💡 {activity.tip}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Price adjustment controls */}
-                  {hasCost && (onFindCheaper || onFindPricier) && (
-                    <AnimatePresence>
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: isHovered || isSearching ? 1 : 0.6, scale: 1 }}
-                        transition={{ duration: 0.15 }}
-                        className="flex items-center gap-1"
-                      >
-                        <motion.button
-                          onClick={onFindCheaper}
-                          disabled={isSearching}
-                          whileTap={{ scale: 0.9 }}
-                          className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center",
-                            "bg-muted hover:bg-primary/10 hover:text-primary",
-                            "text-muted-foreground transition-colors",
-                            "disabled:opacity-50 disabled:cursor-not-allowed"
-                          )}
-                          title="Find cheaper alternative"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </motion.button>
-                        <motion.button
-                          onClick={onFindPricier}
-                          disabled={isSearching}
-                          whileTap={{ scale: 0.9 }}
-                          className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center",
-                            "bg-muted hover:bg-primary/10 hover:text-primary",
-                            "text-muted-foreground transition-colors",
-                            "disabled:opacity-50 disabled:cursor-not-allowed"
-                          )}
-                          title="Find premium alternative"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </motion.button>
-                      </motion.div>
-                    </AnimatePresence>
+                {/* Footer with cost and tip */}
+                <div className="flex items-center gap-4 flex-wrap mt-2">
+                  {hasCost && (
+                    <span className="text-xs font-medium text-primary">
+                      ~${activity.estimated_cost}/person
+                    </span>
+                  )}
+                  
+                  {activity.tip && (
+                    <span className="text-xs text-muted-foreground italic">
+                      💡 {activity.tip}
+                    </span>
                   )}
                 </div>
               </div>
             </div>
           </motion.div>
-        </AnimatePresence>
-
-        {/* Loading overlay */}
-        <AnimatePresence>
-          {isSearching && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-2xl flex items-center justify-center"
-            >
-              <motion.div
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
-                className="flex items-center gap-2"
-              >
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">Finding alternatives...</span>
-              </motion.div>
-            </motion.div>
-          )}
         </AnimatePresence>
       </div>
     </motion.div>
