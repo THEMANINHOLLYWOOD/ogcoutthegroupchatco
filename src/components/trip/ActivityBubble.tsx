@@ -67,8 +67,7 @@ export function ActivityBubble({
             className={cn(
               "rounded-2xl rounded-tl-sm p-4",
               "bg-muted/50 border border-border/50",
-              "shadow-sm hover:shadow-md transition-shadow duration-200",
-              activity.is_live_event && "border-l-2 border-l-red-500"
+              "shadow-sm hover:shadow-md transition-shadow duration-200"
             )}
           >
             <div className="flex items-start gap-3">
@@ -82,18 +81,6 @@ export function ActivityBubble({
                   <h4 className="font-semibold text-foreground text-sm">
                     {activity.title}
                   </h4>
-                  
-                  {/* Live Event Indicator */}
-                  {activity.is_live_event && (
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                      className="flex items-center gap-1"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-destructive" />
-                      <span className="text-xs font-medium text-destructive">LIVE</span>
-                    </motion.div>
-                  )}
                 </div>
                 
                 <p className="text-sm text-muted-foreground leading-relaxed">

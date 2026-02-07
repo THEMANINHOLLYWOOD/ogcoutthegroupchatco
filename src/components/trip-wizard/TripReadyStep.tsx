@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Calendar, Users, Share2 } from "lucide-react";
+import { MapPin, Calendar, Users, Share2, Pencil, Building2, Home, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TripResult, Traveler, Itinerary, TravelerCost, AccommodationType } from "@/lib/tripTypes";
 import { Airport } from "@/lib/airportSearch";
@@ -227,7 +227,7 @@ export function TripReadyStep({
       animate={{ opacity: 1, y: 0 }}
       className="max-w-lg mx-auto space-y-6"
     >
-      {/* Countdown Timer with Edit Button */}
+      {/* Countdown Timer */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -236,7 +236,6 @@ export function TripReadyStep({
         <CountdownTimer 
           expiresAt={expiresAt} 
           onExpire={handleExpire}
-          onEdit={() => setIsEditModalOpen(true)}
         />
       </motion.div>
 
@@ -249,13 +248,24 @@ export function TripReadyStep({
         travelers={travelers}
       />
 
-      {/* Destination Card */}
+      {/* Destination Card with Edit Button */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-5 border border-primary/10"
+        className="relative bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-5 border border-primary/10"
       >
+        {/* Edit Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsEditModalOpen(true)}
+          className="absolute top-3 right-3 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-primary/10"
+          title="Edit trip details"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
             <MapPin className="w-6 h-6 text-primary" />
@@ -266,7 +276,7 @@ export function TripReadyStep({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mt-4">
+        <div className="grid grid-cols-2 gap-4 mt-4">
           <div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
               <Calendar className="w-3 h-3" />
@@ -287,7 +297,36 @@ export function TripReadyStep({
             </div>
             <div className="text-sm font-medium text-foreground">{travelers.length} people</div>
           </div>
+          <div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+              {accommodationType === 'airbnb' ? <Home className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
+              {accommodationType === 'airbnb' ? 'Airbnb' : 'Hotel'}
+            </div>
+            <div className="text-sm font-medium text-foreground truncate">
+              {tripResult.accommodation?.name || 'TBD'}
+            </div>
+          </div>
         </div>
+
+        {/* Flight Times */}
+        {tripResult.flights.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border/50">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+              <Plane className="w-3 h-3" />
+              Flights
+            </div>
+            <div className="flex justify-between text-sm">
+              <div>
+                <span className="text-muted-foreground">Depart: </span>
+                <span className="font-medium text-foreground">{tripResult.flights[0].departure_time}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Arrive: </span>
+                <span className="font-medium text-foreground">{tripResult.flights[0].arrival_time}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Traveler Payment Status */}
