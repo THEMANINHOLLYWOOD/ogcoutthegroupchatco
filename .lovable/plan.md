@@ -1,167 +1,282 @@
 
-# Enhanced Trip Ready Page
+# AI-Generated Trip Image and Edit Mode
 
 ## Overview
-Transform the trip ready page from a static success state into a dynamic command center. Instead of showing "Your trip is ready!", it will immediately display the 24-hour countdown timer to lock in prices, allow users to add itinerary activities to the cost breakdown, and track which travelers have paid.
+Enhance the Trip Ready page with two key features:
+1. Generate a custom AI image using Nano Banana that places all travelers' profile photos at the destination location, displayed prominently below the countdown timer
+2. Add a minimalistic edit button on the timer that opens a modal to edit trip details, then re-runs the search and resets the 24-hour timer
 
-## Current State
-The TripReadyStep currently shows:
-- "Your trip is ready!" success message with checkmark
-- Destination card with dates and group size
-- Collapsible cost breakdown (base costs only)
-- Streaming itinerary
-- Share button, Copy link, Edit trip details
+## Visual Layout
 
-## Proposed Changes
-
-### Visual Layout
 ```text
 ┌─────────────────────────────────────┐
-│ ← Back                    Share ↗   │
+│ ← Back                              │
 ├─────────────────────────────────────┤
 │                                     │
-│         ⏱️ 23:45:32                  │
-│    Time remaining to lock in        │
+│    ┌─────────────────────────┐      │
+│    │  ⏱️ 23:45:32    [✏️]   │      │
+│    │  Time remaining...       │      │
+│    └─────────────────────────┘      │
 │                                     │
-│     ┌─────────────────────────┐     │
-│     │  📍 Miami, Florida      │     │
-│     │  Jun 15 – Jun 20        │     │
-│     │  3 travelers            │     │
-│     └─────────────────────────┘     │
+│    ┌─────────────────────────┐      │
+│    │   [AI-Generated Image]  │      │
+│    │  Travelers at Destination│      │
+│    │   (loading skeleton →   │      │
+│    │    final image)         │      │
+│    └─────────────────────────┘      │
 │                                     │
-│  ── Travelers ──                    │
-│  [Avatar] John Smith    [Pay]       │
-│  [Avatar] Jane Doe      [✓ Paid]    │
-│  2/3 paid                           │
-│                                     │
-│  ── Trip Total ──                   │
-│  $2,400  (+$180 activities)         │
-│  ~$860/person                       │
-│  [Expandable with activity opts]    │
-│                                     │
-│  ── Your Itinerary ──               │
-│  [Skeleton → Streamed content]      │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │        Share Trip           │    │
-│  └─────────────────────────────┘    │
+│    [Destination Card]               │
+│    [Payment Status]                 │
+│    [Cost Summary]                   │
+│    [Itinerary]                      │
+│    [Share Button]                   │
 │                                     │
 └─────────────────────────────────────┘
 ```
 
 ---
 
-## Technical Implementation
+## Feature 1: AI-Generated Group Image
 
-### Step 1: Update TripReadyStep Component
-**File:** `src/components/trip-wizard/TripReadyStep.tsx`
+### How It Works
+1. When the trip is created, immediately trigger image generation in background
+2. Pass all travelers' avatar URLs to the edge function
+3. Use Nano Banana (Gemini 2.5 Flash Image) to create a composite image placing all travelers at the destination
+4. Display a skeleton loader while generating, then fade in the final image
+5. Cache the image at `share-images/{tripId}/group.png`
 
-**Changes:**
-1. Replace success header (checkmark + "Your trip is ready!") with CountdownTimer
-2. Add TravelerPaymentStatus section with Pay buttons
-3. Replace simple cost collapsible with CostSummary component (includes activity selection)
-4. Add state for selected activities and paid travelers
-5. Remove "Copy link" and "Edit trip details" buttons
-6. Keep only the "Share Trip" button
+### Updated Prompt Strategy
+The prompt will reference multiple face photos to generate a group shot:
+- If multiple avatars: "Show these friends together enjoying [destination landmark]"
+- Include all traveler profile photos as reference images
 
-### Step 2: Add Activity Cost Selection
-Integrate the existing CostSummary component which already supports:
-- Selecting activities to add to the total
-- Day-by-day activity cost breakdown
-- Per-person activity cost adjustments
-
-### Step 3: Add Payment Tracking
-Integrate the existing TravelerPaymentStatus component:
-- Show each traveler with their cost
-- Pay button for each traveler
-- Track paid status in local state
-- Display paid count (e.g., "2/3 paid")
-
-### Step 4: Set Link Expiration
-When the trip is saved, set the 24-hour expiration time so the countdown starts immediately.
+### UI Component
+- New `TripGroupImage` component below the countdown
+- Shows skeleton with shimmer effect while loading
+- Displays generated image with rounded corners and shadow
+- Fallback to destination-only image if no avatars available
 
 ---
 
-## Files to Modify
+## Feature 2: Edit Trip Details
+
+### How It Works
+1. Add a subtle pencil (edit) icon button on the timer component
+2. Clicking opens a modal/sheet with the trip edit form
+3. Form pre-filled with current: destination, origin, dates
+4. On save:
+   - Show searching state
+   - Re-run `searchTrip()` with new parameters
+   - Update trip in database with new costs
+   - Re-trigger itinerary generation
+   - Reset the 24-hour countdown timer
+   - Close modal and refresh the page data
+
+### Edit Modal Contents
+```text
+┌─────────────────────────────────────┐
+│ Edit Trip Details              [X]  │
+├─────────────────────────────────────┤
+│                                     │
+│  Destination                        │
+│  [Airport Autocomplete]             │
+│                                     │
+│  Departing From                     │
+│  [Airport Autocomplete]             │
+│                                     │
+│  Travel Dates                       │
+│  [Date Range Picker]                │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │     Update Trip             │    │
+│  └─────────────────────────────┘    │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Timer Reset Flow
+1. User edits details and clicks "Update Trip"
+2. System calls `searchTrip()` with new parameters
+3. On success:
+   - Update database with new flight/accommodation costs
+   - Calculate new 24-hour expiration
+   - Re-generate itinerary for new destination/dates
+   - Regenerate AI group image for new destination
+4. UI updates automatically via realtime subscription
+
+---
+
+## Technical Implementation
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/components/trip/TripGroupImage.tsx` | New component to display AI-generated group image |
+| `src/components/trip/EditTripModal.tsx` | Modal for editing trip details |
+
+### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/trip-wizard/TripReadyStep.tsx` | Add countdown, payment status, activity selection; remove copy link and edit buttons |
-| `src/pages/CreateTrip.tsx` | Pass expiration time to TripReadyStep, set link_created_at and link_expires_at on save |
-
-## Components to Reuse
-
-| Component | Purpose |
-|-----------|---------|
-| `CountdownTimer` | 24-hour countdown display |
-| `TravelerPaymentStatus` | Track who has paid |
-| `CostSummary` | Activity selection and dynamic total |
+| `src/components/trip-wizard/TripReadyStep.tsx` | Add edit button, group image, handle edit flow |
+| `src/components/trip/CountdownTimer.tsx` | Add optional edit button prop |
+| `supabase/functions/generate-share-image/index.ts` | Update to handle multiple traveler avatars |
+| `src/lib/tripService.ts` | Add `updateTrip()` function |
+| `src/pages/CreateTrip.tsx` | Handle edit completion and state refresh |
 
 ---
 
-## Detailed Changes
+## Detailed Component Specifications
 
-### TripReadyStep.tsx Updates
+### TripGroupImage Component
 
-**New Props:**
 ```typescript
-interface TripReadyStepProps {
+interface TripGroupImageProps {
   tripId: string;
-  tripResult: TripResult;
-  destination: Airport;
-  departureDate: Date;
-  returnDate: Date;
+  destinationCity: string;
+  destinationCountry: string;
   travelers: Traveler[];
-  itinerary: Itinerary | null;
-  itineraryStatus: 'pending' | 'generating' | 'complete' | 'failed';
-  shareCode: string;
-  expiresAt: string;  // NEW: 24-hour expiration timestamp
+  onImageReady?: (imageUrl: string) => void;
 }
 ```
 
-**New State:**
+**Behavior:**
+- On mount, check for existing cached image
+- If not cached, trigger generation via edge function
+- Show skeleton with subtle pulse animation while loading
+- Fade in the image when ready
+- 16:9 aspect ratio with rounded corners
+
+### EditTripModal Component
+
 ```typescript
-const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
-const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+interface EditTripModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentDestination: Airport;
+  currentOrigin: Airport;
+  currentDepartureDate: Date;
+  currentReturnDate: Date;
+  travelers: Traveler[];
+  tripId: string;
+  onUpdateComplete: (newData: {
+    tripResult: TripResult;
+    destination: Airport;
+    origin: Airport;
+    departureDate: Date;
+    returnDate: Date;
+    expiresAt: string;
+  }) => void;
+}
 ```
 
-**Removed Elements:**
-- Success checkmark and "Your trip is ready!" header
-- "Copy link" button
-- "Edit trip details" button
-- `onEdit` prop
+**Behavior:**
+- Sheet/Dialog with form fields
+- Pre-populated with current values
+- "Update Trip" button triggers search
+- Shows loading state during search
+- Calls callback with new data on success
+- Toast on error
 
-**Added Elements:**
-- CountdownTimer at the top (replaces success header)
-- TravelerPaymentStatus section
-- CostSummary with activity selection (replaces simple collapsible)
-
-### CreateTrip.tsx Updates
-
-**On Save:**
-- Calculate expiration time (24 hours from now)
-- Store in state and pass to TripReadyStep
+### CountdownTimer Updates
 
 ```typescript
-const expiresAt = new Date();
-expiresAt.setHours(expiresAt.getHours() + 24);
-setExpiresAt(expiresAt.toISOString());
+interface CountdownTimerProps {
+  expiresAt: string;
+  onExpire?: () => void;
+  onEdit?: () => void;  // NEW: Optional edit handler
+}
+```
+
+**UI Change:**
+- If `onEdit` provided, show a small pencil icon button
+- Positioned in top-right of timer component
+- Subtle hover effect
+
+---
+
+## Edge Function Updates
+
+### generate-share-image Updates
+
+**New Input Format:**
+```typescript
+{
+  tripId: string;
+  destinationCity: string;
+  destinationCountry: string;
+  travelers: Array<{
+    name: string;
+    avatar_url?: string;
+  }>;
+  type?: 'group' | 'personal';  // NEW: Support group images
+}
+```
+
+**Prompt for Multiple Travelers:**
+```
+Create a stunning travel photo at ${destinationCity}, ${destinationCountry}.
+Show ${count} friends together enjoying a famous landmark.
+Use the reference photos to create realistic depictions of these people.
+Golden hour lighting, vibrant colors, Instagram-worthy.
+Professional travel photography style, 16:9 aspect ratio.
+The friends should look happy and excited together.
+```
+
+**Storage Path:**
+- Group images: `share-images/{tripId}/group.png`
+- Personal images: `share-images/{tripId}/{userId}.png`
+
+---
+
+## Data Flow
+
+### On Trip Creation
+```text
+1. Trip saved → tripId generated
+2. Trigger generateItinerary() (existing)
+3. Trigger generateGroupImage() (NEW)
+   └─ Pass all traveler avatar_urls
+   └─ Generate composite image
+   └─ Store at share-images/{tripId}/group.png
+4. TripGroupImage component polls/subscribes for image
+5. Image appears with fade animation
+```
+
+### On Trip Edit
+```text
+1. User clicks edit icon on timer
+2. EditTripModal opens (pre-filled)
+3. User changes details, clicks "Update Trip"
+4. Modal shows loading state
+5. searchTrip() called with new params
+6. On success:
+   └─ Update trip in database
+   └─ Reset expiration to +24 hours
+   └─ Regenerate itinerary
+   └─ Regenerate group image for new destination
+   └─ Close modal
+   └─ UI updates via callback/realtime
+7. User sees updated costs and new countdown
 ```
 
 ---
 
-## User Flow
+## User Experience Details
 
-1. User clicks "Search Flights" → Searching animation
-2. Search completes → Trip saved → Ready page shows immediately
-3. Ready page displays:
-   - **24-hour countdown** at the top
-   - Destination card
-   - **Traveler payment status** with Pay buttons
-   - **Cost breakdown** with ability to add itinerary activities
-   - Itinerary (loading → streaming → complete)
-   - Share button only (no copy link, no edit)
-4. User can:
-   - Mark travelers as paid
-   - Add/remove activities to adjust final cost
-   - Share the trip with the group
+### Image Generation States
+1. **Loading**: Skeleton with subtle shimmer animation
+2. **Ready**: Image fades in smoothly
+3. **Error**: Hide the section gracefully (no error shown to user)
+
+### Edit Button Styling
+- Small, subtle pencil icon
+- Ghost button variant
+- Positioned near timer without cluttering
+- Hover shows tooltip "Edit trip details"
+
+### Edit Flow Feedback
+- Modal shows loading spinner during search
+- Success: Toast "Trip updated!" + modal closes
+- Failure: Toast with error, modal stays open
