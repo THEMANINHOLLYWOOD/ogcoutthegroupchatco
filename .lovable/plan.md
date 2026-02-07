@@ -1,74 +1,94 @@
 
-# Edit Travelers in Trip Details + Fix AI Image Generation
+
+# Profile Reorganization and AI Image Generation Fix
 
 ## Overview
-This plan addresses two features:
-1. **Edit Travelers**: Extend the EditTripModal to allow adding, editing, and removing travelers (not just destination/dates)
-2. **Fix AI Image Generation**: Make the `travel-media` storage bucket public so generated images display correctly
+This plan restructures the Profile page tabs and improves the AI group image generation to properly use profile pictures and skip generation when no reference photos are available.
 
 ---
 
-## Current Issues
+## Part 1: Profile Tab Reorganization
 
-### Storage Bucket Problem
-The `travel-media` bucket is set to `public: false`. When the edge function generates an image and calls `getPublicUrl()`, it returns a URL that requires authentication. Since the frontend can't access these URLs without auth tokens, the images fail to load.
+### Current State
+```text
+Tabs: About | Companions | Photos | Travel | Places
+```
 
-**Evidence from database:**
-- `public: false` for `travel-media` bucket
-- Edge function logs show successful generation: "Image uploaded successfully: https://..."
-- Direct API test returned success with valid imageUrl
+### Target State
+```text
+Tabs: About | Photos | Trips | Places
+         └─ (includes Companions section)
+```
 
-### EditTripModal Limitation
-Currently only allows editing destination, origin, and dates. Travelers are passed as a prop but cannot be modified.
+### Changes
+
+**Profile.tsx Updates:**
+1. Remove the Companions tab trigger and content
+2. Remove the Travel tab trigger and content
+3. Add a new "Trips" tab that displays the user's trips
+4. Change grid from 5 columns to 4 columns
+
+**PersonalInfoForm.tsx Updates:**
+- Add the TravelCompanions component below the save button
+- Add a divider/section heading for "Travel Companions"
+
+### New Tab Order
+| Tab | Content |
+|-----|---------|
+| About | Personal info form + Travel Companions |
+| Photos | PhotoGallery (unchanged) |
+| Trips | User's trips list (new) |
+| Places | PlacesVisited (unchanged) |
 
 ---
 
-## Solution
+## Part 2: Create ProfileTrips Component
 
-### Part 1: Fix Storage Access
+### New File: `src/components/profile/ProfileTrips.tsx`
 
-**Database Migration Required:**
-Make the `travel-media` bucket public for share-images folder, or update the bucket to be public.
+This component will reuse the trip fetching logic from `Trips.tsx` but display inline within the profile tabs. It will:
 
-Alternatively, generate signed URLs instead of public URLs.
+1. Fetch user trips using `fetchUserTrips()`
+2. Display loading skeletons while loading
+3. Show empty state with CTA to create a trip
+4. List trips using the existing `TripCard` component
 
-**Recommended Approach:** Make the bucket public since share images are meant to be publicly shareable.
-
-```sql
-UPDATE storage.buckets 
-SET public = true 
-WHERE name = 'travel-media';
+```typescript
+interface ProfileTripsProps {
+  // No props needed, fetches trips for current user
+}
 ```
 
-This also requires adding a public read policy for the `share-images` folder.
+---
 
-### Part 2: Add Traveler Management to EditTripModal
+## Part 3: Fix AI Group Image Generation
 
-**Current Component Structure:**
-```
-EditTripModal
-├── Destination (AirportAutocomplete)
-├── Origin (AirportAutocomplete)
-├── Departure Date (Calendar)
-├── Return Date (Calendar)
-└── Update Button
-```
+### Problem
+Currently, the edge function generates a generic image with "diverse friends" when no profile pictures are available. The frontend always tries to generate regardless of avatar availability.
 
-**New Structure:**
-```
-EditTripModal (scrollable content)
-├── Destination (AirportAutocomplete)
-├── Origin (AirportAutocomplete)
-├── Departure Date (Calendar)
-├── Return Date (Calendar)
-├── ── Travelers Section ──
-│   ├── TravelerCard (organizer - not removable)
-│   ├── TravelerCard (guest - editable origin, removable)
-│   ├── TravelerCard (guest - editable origin, removable)
-│   └── + Add Traveler button
-├── UserSearchPicker (sheet)
-├── ManualTravelerForm (inline)
-└── Update Button
+### Solution
+
+**TripGroupImage.tsx Updates:**
+1. Check if any travelers have `avatar_url` before calling the edge function
+2. If no travelers have profile pictures, don't render anything (return null immediately)
+3. Only show the loading skeleton and call the API when there's at least one avatar
+
+**generate-share-image Edge Function Updates:**
+1. Add explicit check: if `isGroupImage` and `avatarUrls.length === 0`, return early with a "skipped" response
+2. Don't generate generic images without reference photos
+3. Return `{ success: true, skipped: true, reason: "no_avatars" }` when skipping
+
+### Updated Prompt Strategy
+When avatars ARE available:
+- Be more explicit about using the provided face references
+- Emphasize that the generated people should match the reference photos
+
+```text
+Create a stunning travel photo at ${destination}.
+IMPORTANT: Generate realistic depictions of EXACTLY the people shown in the reference photos below.
+Use their actual faces, features, and characteristics to place them at this destination.
+Do not create generic or random people - recreate these specific individuals.
+Golden hour lighting, vibrant colors, professional travel photography, 16:9 aspect ratio.
 ```
 
 ---
@@ -77,263 +97,144 @@ EditTripModal (scrollable content)
 
 | File | Changes |
 |------|---------|
-| `src/components/trip/EditTripModal.tsx` | Add travelers section with add/edit/remove capability |
-| `src/components/trip-wizard/TripReadyStep.tsx` | Accept updated travelers in onUpdateComplete callback |
-| `src/pages/CreateTrip.tsx` | Handle traveler updates from edit modal |
-
-## Database Changes
-
-| Change | Purpose |
-|--------|---------|
-| Make `travel-media` bucket public | Allow share images to be viewed without authentication |
-| Add storage policy for public read on `share-images/*` | Security policy for public access |
+| `src/pages/Profile.tsx` | Remove Companions/Travel tabs, add Trips tab, adjust grid |
+| `src/components/profile/PersonalInfoForm.tsx` | Add TravelCompanions section at bottom |
+| `src/components/profile/ProfileTrips.tsx` | NEW: Display user trips in profile |
+| `src/components/trip/TripGroupImage.tsx` | Skip generation when no avatars available |
+| `supabase/functions/generate-share-image/index.ts` | Return early when no avatars, improve prompt |
 
 ---
 
 ## Detailed Implementation
 
-### EditTripModal Component Updates
+### Profile.tsx Tab Structure
 
-**New Props Interface:**
 ```typescript
-interface EditTripModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  currentDestination: Airport;
-  currentOrigin: Airport;
-  currentDepartureDate: Date;
-  currentReturnDate: Date;
-  travelers: Traveler[];  // Now editable
-  tripId: string;
-  onUpdateComplete: (newData: {
-    tripResult: TripResult;
-    destination: Airport;
-    origin: Airport;
-    departureDate: Date;
-    returnDate: Date;
-    expiresAt: string;
-    travelers: Traveler[];  // NEW: Return updated travelers
-  }) => void;
+// Updated tabs - now 4 instead of 5
+<TabsList className="... sm:grid-cols-4 ...">
+  <TabsTrigger value="about">About</TabsTrigger>
+  <TabsTrigger value="photos">Photos</TabsTrigger>
+  <TabsTrigger value="trips">Trips</TabsTrigger>
+  <TabsTrigger value="places">Places</TabsTrigger>
+</TabsList>
+
+// About tab now includes companions
+<TabsContent value="about">
+  <PersonalInfoForm ... />
+  {/* Companions moved here */}
+</TabsContent>
+
+// New trips tab
+<TabsContent value="trips">
+  <ProfileTrips />
+</TabsContent>
+```
+
+### PersonalInfoForm with Companions
+
+```typescript
+// At the bottom of PersonalInfoForm.tsx
+<form onSubmit={...}>
+  {/* Existing form fields */}
+  <Button type="submit">Save Changes</Button>
+</form>
+
+{/* Companions section */}
+<div className="mt-8 pt-6 border-t border-border">
+  <h3 className="text-lg font-semibold mb-4">Travel Companions</h3>
+  <TravelCompanions />
+</div>
+```
+
+### TripGroupImage Skip Logic
+
+```typescript
+export function TripGroupImage({ tripId, destinationCity, destinationCountry, travelers, onImageReady }) {
+  // Check if any travelers have profile pictures
+  const travelersWithAvatars = travelers.filter(t => t.avatar_url);
+  
+  // If no one has a profile picture, don't render anything
+  if (travelersWithAvatars.length === 0) {
+    return null;
+  }
+  
+  // Rest of component...
 }
 ```
 
-**New State:**
-```typescript
-const [localTravelers, setLocalTravelers] = useState<Traveler[]>(travelers);
-const [showUserSearch, setShowUserSearch] = useState(false);
-const [showManualForm, setShowManualForm] = useState(false);
-const [pendingUser, setPendingUser] = useState<PlatformUser | null>(null);
-```
-
-**New Functions:**
-```typescript
-const addPlatformUser = (user: PlatformUser, origin: Airport) => {
-  const newTraveler: Traveler = {
-    id: crypto.randomUUID(),
-    name: user.full_name || "Unknown User",
-    origin,
-    isOrganizer: false,
-    user_id: user.id,
-    avatar_url: user.avatar_url || undefined,
-  };
-  setLocalTravelers(prev => [...prev, newTraveler]);
-};
-
-const addManualTraveler = (name: string, origin: Airport) => {
-  const newTraveler: Traveler = {
-    id: crypto.randomUUID(),
-    name,
-    origin,
-    isOrganizer: false,
-  };
-  setLocalTravelers(prev => [...prev, newTraveler]);
-};
-
-const removeTraveler = (id: string) => {
-  setLocalTravelers(prev => prev.filter(t => t.id !== id));
-};
-
-const updateTravelerOrigin = (id: string, newOrigin: Airport) => {
-  setLocalTravelers(prev => prev.map(t => 
-    t.id === id ? { ...t, origin: newOrigin } : t
-  ));
-};
-```
-
-**UI Layout:**
-```
-┌─────────────────────────────────────┐
-│ Edit Trip Details              [X]  │
-├─────────────────────────────────────┤
-│  Destination                        │
-│  [Airport Autocomplete]             │
-│                                     │
-│  Departing From                     │
-│  [Airport Autocomplete]             │
-│                                     │
-│  ┌───────────┐    ┌───────────┐     │
-│  │ Departure │    │  Return   │     │
-│  │  Feb 15   │    │  Feb 22   │     │
-│  └───────────┘    └───────────┘     │
-│                                     │
-│  ── Travelers (3) ──                │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ 👤 John Smith (You)   ATL   │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ 👤 Jane Doe    [ATL ▾] [X]  │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ 👤 Bob Wilson  [LAX ▾] [X]  │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │  + Add Traveler             │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │     Update Trip             │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  Updating will refresh prices...    │
-└─────────────────────────────────────┘
-```
-
-### EditableTravelerCard Sub-Component
-
-Create inline within EditTripModal (or as separate component):
+### Edge Function Early Return
 
 ```typescript
-interface EditableTravelerCardProps {
-  traveler: Traveler;
-  onRemove?: () => void;
-  onOriginChange?: (origin: Airport) => void;
+// In generate-share-image/index.ts
+const avatarUrls = travelerList
+  .map(t => t.avatar_url)
+  .filter((url): url is string => !!url);
+
+// For group images, require at least one avatar
+if (isGroupImage && avatarUrls.length === 0) {
+  console.log("Skipping group image generation - no avatars provided");
+  return new Response(
+    JSON.stringify({ 
+      success: true, 
+      skipped: true, 
+      reason: "no_avatars" 
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
 }
 ```
 
-Features:
-- Shows avatar/fallback, name, origin
-- Organizer card: Read-only (no remove button)
-- Guest cards: Origin dropdown + remove button
-- Compact layout for modal context
+### Improved Nano Banana Prompt
 
-### Update Flow
+```text
+Create a stunning travel photo at ${destinationCity}, ${destinationCountry}.
 
-1. User opens edit modal
-2. Modal initializes with current travelers
-3. User can:
-   - Add new traveler (search or manual)
-   - Remove non-organizer traveler
-   - Change traveler's origin airport
-4. User updates destination/dates as before
-5. User clicks "Update Trip"
-6. System:
-   - Re-runs searchTrip with updated travelers
-   - Updates database with new costs
-   - Regenerates itinerary
-   - Regenerates group image
-   - Resets 24-hour timer
-7. Modal closes, UI updates
+CRITICAL INSTRUCTION: The reference photos below show the actual people who should appear in this image.
+Generate realistic depictions of THESE SPECIFIC INDIVIDUALS at the destination.
+- Match their facial features, skin tones, hair styles, and overall appearance
+- Do not generate random or generic people
+- Place these exact people at a famous landmark in ${destinationCity}
 
-### Database Update for Travelers
-
-When updating the trip, also update the travelers JSONB column:
-
-```typescript
-const { error: updateError } = await supabase
-  .from("trips")
-  .update({
-    destination_city: destination.city,
-    // ... other fields
-    travelers: localTravelers.map(t => ({
-      traveler_name: t.name,
-      origin: t.origin.iata,
-      destination: destination.iata,
-      flight_cost: 0, // Will be recalculated
-      accommodation_share: 0,
-      subtotal: 0,
-      user_id: t.user_id,
-      avatar_url: t.avatar_url,
-    })),
-    // Update with new breakdown from search
-    cost_breakdown: searchResult.data.breakdown,
-  })
-  .eq("id", tripId);
+Style: Golden hour lighting, vibrant colors, professional travel photography
+Composition: Ultra-wide cinematic shot, 16:9 aspect ratio
+Mood: Happy, excited travelers capturing a perfect memory together
 ```
 
 ---
 
-## Storage Fix Implementation
+## Data Flow
 
-### Migration SQL
-
-```sql
--- Make travel-media bucket public
-UPDATE storage.buckets 
-SET public = true 
-WHERE name = 'travel-media';
-
--- Add public read policy for share-images folder
-CREATE POLICY "Public can view share images"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'travel-media' AND (storage.foldername(name))[1] = 'share-images');
+### Profile Trips Display
+```text
+1. User navigates to Profile → Trips tab
+2. ProfileTrips component mounts
+3. Calls fetchUserTrips() (same as Trips.tsx)
+4. Displays TripCard components for each trip
+5. Clicking a trip navigates to /trip/{id}/dashboard
 ```
 
-This allows:
-- Anyone to view images in `share-images/` folder
-- Images remain uploadable only via service role (edge function)
-
----
-
-## Components to Reuse
-
-| Component | Usage in EditTripModal |
-|-----------|------------------------|
-| `UserSearchPicker` | Search for platform users to add |
-| `ManualTravelerForm` | Add travelers by name |
-| `PlatformUserConfirm` | Confirm platform user with origin |
-| `AirportAutocomplete` | Change traveler's origin |
-| `TravelerCard` | Display travelers (with modifications for edit mode) |
-
----
-
-## TripReadyStep Updates
-
-Update the callback to include travelers:
-
-```typescript
-const handleTripUpdate = useCallback((newData: {
-  tripResult: TripResult;
-  destination: Airport;
-  origin: Airport;
-  departureDate: Date;
-  returnDate: Date;
-  expiresAt: string;
-  travelers: Traveler[];  // NEW
-}) => {
-  setTripResult(newData.tripResult);
-  setDestination(newData.destination);
-  setOrigin(newData.origin);
-  setDepartureDate(newData.departureDate);
-  setReturnDate(newData.returnDate);
-  setExpiresAt(newData.expiresAt);
-  // Update travelers in parent via prop
-  onTravelersUpdate?.(newData.travelers);
-  setGroupImageKey(prev => prev + 1);
-}, []);
+### AI Image Generation (Updated)
+```text
+1. Trip created with travelers
+2. TripGroupImage component checks: any avatars?
+   ├─ NO avatars → return null (no image section shown)
+   └─ YES avatars → proceed with generation
+3. Edge function receives request
+4. Edge function checks: isGroupImage && no avatars?
+   ├─ NO avatars → return { skipped: true }
+   └─ YES avatars → generate with improved prompt
+5. Generated image uses actual faces from references
 ```
 
 ---
 
 ## Summary
 
-| Task | Complexity | Impact |
-|------|------------|--------|
-| Make storage bucket public | Low | Fixes image display |
-| Add storage policy | Low | Security for public access |
-| Add traveler management to EditTripModal | Medium | Full edit capability |
-| Update TripReadyStep callbacks | Low | Data flow |
-| Update CreateTrip state management | Low | Handle traveler updates |
+| Change | Impact |
+|--------|--------|
+| Merge Companions into About tab | Cleaner profile structure |
+| Remove Travel tab | Simplify navigation |
+| Add Trips tab | Quick access to user's trips |
+| Skip image generation without avatars | No wasted API calls or generic images |
+| Improved prompt for face matching | Better likeness in generated images |
+
