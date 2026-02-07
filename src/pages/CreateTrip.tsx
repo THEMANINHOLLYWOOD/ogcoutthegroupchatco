@@ -45,6 +45,7 @@ export default function CreateTrip() {
   const [shareCode, setShareCode] = useState<string>("");
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [itineraryStatus, setItineraryStatus] = useState<SavedTrip["itinerary_status"]>("pending");
+  const [expiresAt, setExpiresAt] = useState<string>("");
   
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -136,6 +137,11 @@ export default function CreateTrip() {
       if (saveResult.success && saveResult.tripId) {
         setTripId(saveResult.tripId);
         
+        // Calculate 24-hour expiration
+        const expiration = new Date();
+        expiration.setHours(expiration.getHours() + 24);
+        setExpiresAt(expiration.toISOString());
+        
         // Fetch trip to get share code
         const { supabase } = await import("@/integrations/supabase/client");
         const { data: tripData } = await supabase
@@ -198,6 +204,7 @@ export default function CreateTrip() {
     setShareCode("");
     setItinerary(null);
     setItineraryStatus("pending");
+    setExpiresAt("");
   }, []);
 
   const currentStepNumber = stepNumbers[step];
@@ -285,7 +292,7 @@ export default function CreateTrip() {
                 itinerary={itinerary}
                 itineraryStatus={itineraryStatus}
                 shareCode={shareCode}
-                onEdit={handleEditTrip}
+                expiresAt={expiresAt}
               />
             </motion.div>
           )}

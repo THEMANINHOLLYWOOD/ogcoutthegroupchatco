@@ -1,16 +1,16 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Calendar, Users, Check, ChevronDown, Copy, Share2 } from "lucide-react";
+import { MapPin, Calendar, Users, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { TripResult, Traveler, Itinerary } from "@/lib/tripTypes";
+import { TripResult, Traveler, Itinerary, TravelerCost } from "@/lib/tripTypes";
 import { Airport } from "@/lib/airportSearch";
-import { CostBreakdown } from "./CostBreakdown";
+import { CountdownTimer } from "@/components/trip/CountdownTimer";
+import { TravelerPaymentStatus } from "@/components/trip/TravelerPaymentStatus";
+import { CostSummary } from "@/components/trip/CostSummary";
 import { ItineraryView } from "@/components/trip/ItineraryView";
 import { ItinerarySkeleton } from "@/components/trip/ItinerarySkeleton";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
 interface TripReadyStepProps {
   tripId: string;
@@ -22,7 +22,7 @@ interface TripReadyStepProps {
   itinerary: Itinerary | null;
   itineraryStatus: 'pending' | 'generating' | 'complete' | 'failed';
   shareCode: string;
-  onEdit: () => void;
+  expiresAt: string;
 }
 
 export function TripReadyStep({
@@ -34,10 +34,19 @@ export function TripReadyStep({
   itinerary,
   itineraryStatus,
   shareCode,
-  onEdit,
+  expiresAt,
 }: TripReadyStepProps) {
-  const [isCostOpen, setIsCostOpen] = useState(false);
+  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
+  
   const nights = Math.ceil((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Convert travelers to TravelerCost format for payment status
+  const travelerCosts: TravelerCost[] = tripResult.breakdown.map((item, index) => ({
+    ...item,
+    user_id: travelers[index]?.user_id,
+    avatar_url: travelers[index]?.avatar_url,
+  }));
 
   const handleCopyLink = async () => {
     const shareUrl = `https://outthegroupchatco.com/trip/${shareCode}`;
@@ -74,35 +83,109 @@ export function TripReadyStep({
     }
   };
 
+  const handlePayTraveler = useCallback(async (travelerName: string) => {
+    // Simulate payment processing
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setPaidTravelers(prev => new Set([...prev, travelerName]));
+    toast({
+      title: "Payment recorded",
+      description: `${travelerName} has been marked as paid`,
+    });
+  }, []);
+
+  const handleToggleActivity = useCallback((dayNumber: number, activityIndex: number) => {
+    const key = `${dayNumber}-${activityIndex}`;
+    setSelectedActivities(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleAddAllActivities = useCallback(() => {
+    if (!itinerary) return;
+    const allKeys = new Set<string>();
+    itinerary.days.forEach(day => {
+      day.activities.forEach((activity, index) => {
+        if ((activity.estimated_cost || 0) > 0) {
+          allKeys.add(`${day.day_number}-${index}`);
+        }
+      });
+    });
+    
+    // Toggle: if all are selected, deselect all; otherwise select all
+    const allSelected = itinerary.days.every(day =>
+      day.activities.every((activity, index) => {
+        if ((activity.estimated_cost || 0) === 0) return true;
+        return selectedActivities.has(`${day.day_number}-${index}`);
+      })
+    );
+    
+    setSelectedActivities(allSelected ? new Set() : allKeys);
+  }, [itinerary, selectedActivities]);
+
+  const handleAddDayActivities = useCallback((dayNumber: number) => {
+    if (!itinerary) return;
+    const day = itinerary.days.find(d => d.day_number === dayNumber);
+    if (!day) return;
+    
+    setSelectedActivities(prev => {
+      const next = new Set(prev);
+      day.activities.forEach((activity, index) => {
+        if ((activity.estimated_cost || 0) > 0) {
+          next.add(`${dayNumber}-${index}`);
+        }
+      });
+      return next;
+    });
+  }, [itinerary]);
+
+  const handleRemoveDayActivities = useCallback((dayNumber: number) => {
+    if (!itinerary) return;
+    const day = itinerary.days.find(d => d.day_number === dayNumber);
+    if (!day) return;
+    
+    setSelectedActivities(prev => {
+      const next = new Set(prev);
+      day.activities.forEach((_, index) => {
+        next.delete(`${dayNumber}-${index}`);
+      });
+      return next;
+    });
+  }, [itinerary]);
+
+  const handleExpire = useCallback(() => {
+    toast({
+      title: "Time expired",
+      description: "Prices may have changed. Please search again for current rates.",
+      variant: "destructive",
+    });
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-lg mx-auto space-y-6"
     >
-      {/* Success Header */}
-      <div className="text-center">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", delay: 0.2 }}
-          className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4"
-        >
-          <Check className="w-8 h-8 text-primary" />
-        </motion.div>
-        <h1 className="text-2xl font-bold text-foreground mb-1">
-          Your trip is ready!
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Share with your group and start planning together
-        </p>
-      </div>
+      {/* Countdown Timer */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        <CountdownTimer expiresAt={expiresAt} onExpire={handleExpire} />
+      </motion.div>
 
       {/* Destination Card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+        transition={{ delay: 0.15 }}
         className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-5 border border-primary/10"
       >
         <div className="flex items-start gap-4">
@@ -139,43 +222,40 @@ export function TripReadyStep({
         </div>
       </motion.div>
 
-      {/* Cost Summary - Collapsible */}
+      {/* Traveler Payment Status */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-background border border-border rounded-2xl overflow-hidden"
+        className="bg-background border border-border rounded-2xl p-4"
       >
-        <Collapsible open={isCostOpen} onOpenChange={setIsCostOpen}>
-          <CollapsibleTrigger asChild>
-            <button className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-              <div className="text-left">
-                <div className="text-sm text-muted-foreground">Trip Total</div>
-                <div className="text-2xl font-bold text-foreground">
-                  ${tripResult.trip_total.toLocaleString()}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  ~${tripResult.total_per_person.toLocaleString()}/person
-                </div>
-              </div>
-              <ChevronDown className={cn(
-                "w-5 h-5 text-muted-foreground transition-transform",
-                isCostOpen && "rotate-180"
-              )} />
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="border-t border-border px-4">
-              {tripResult.breakdown.map((item, index) => (
-                <CostBreakdown
-                  key={index}
-                  breakdown={item}
-                  isLast={index === tripResult.breakdown.length - 1}
-                />
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
+        <TravelerPaymentStatus
+          travelers={travelerCosts}
+          paidTravelers={paidTravelers}
+          onPay={handlePayTraveler}
+          isOrganizer={true}
+        />
+      </motion.div>
+
+      {/* Cost Summary with Activity Selection */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        <CostSummary
+          breakdown={tripResult.breakdown}
+          accommodation={tripResult.accommodation}
+          totalPerPerson={tripResult.total_per_person}
+          tripTotal={tripResult.trip_total}
+          itinerary={itinerary}
+          travelerCount={travelers.length}
+          selectedActivities={selectedActivities}
+          onToggleActivity={handleToggleActivity}
+          onAddAllActivities={handleAddAllActivities}
+          onAddDayActivities={handleAddDayActivities}
+          onRemoveDayActivities={handleRemoveDayActivities}
+        />
       </motion.div>
 
       {/* Itinerary Section */}
@@ -204,12 +284,12 @@ export function TripReadyStep({
         )}
       </motion.div>
 
-      {/* Share Actions */}
+      {/* Share Button Only */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="space-y-3 pt-4"
+        transition={{ delay: 0.35 }}
+        className="pt-4"
       >
         <Button
           onClick={handleShare}
@@ -218,21 +298,6 @@ export function TripReadyStep({
           <Share2 className="w-4 h-4 mr-2" />
           Share Trip
         </Button>
-        
-        <button
-          onClick={handleCopyLink}
-          className="w-full flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Copy className="w-4 h-4" />
-          Copy link
-        </button>
-        
-        <button
-          onClick={onEdit}
-          className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Edit trip details
-        </button>
       </motion.div>
 
       {/* Footer Note */}
