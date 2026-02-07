@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Calendar, Users, Share2, Pencil, Building2, Home, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { ItineraryView } from "@/components/trip/ItineraryView";
 import { ItinerarySkeleton } from "@/components/trip/ItinerarySkeleton";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
+import { fetchReactions, subscribeToReactions, addReaction, removeReaction, ReactionsMap, getReactionKey } from "@/lib/reactionService";
+import { useAuth } from "@/hooks/useAuth";
 
 interface TripReadyStepProps {
   tripId: string;
@@ -65,6 +67,9 @@ export function TripReadyStep({
   const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [groupImageKey, setGroupImageKey] = useState(0);
+  const [reactions, setReactions] = useState<ReactionsMap>(new Map());
+  
+  const { user } = useAuth();
   
   const nights = Math.ceil((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -74,6 +79,37 @@ export function TripReadyStep({
     user_id: travelers[index]?.user_id,
     avatar_url: travelers[index]?.avatar_url,
   }));
+
+  // Load reactions
+  const loadReactions = useCallback(async () => {
+    if (!tripId) return;
+    const reactionsData = await fetchReactions(tripId, user?.id);
+    setReactions(reactionsData);
+  }, [tripId, user?.id]);
+
+  // Subscribe to realtime updates
+  useEffect(() => {
+    loadReactions();
+    const unsubscribe = subscribeToReactions(tripId, loadReactions);
+    return unsubscribe;
+  }, [tripId, loadReactions]);
+
+  // Handle reaction
+  const handleReact = useCallback(async (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => {
+    if (!user) {
+      toast({ title: "Sign in required", description: "Please sign in to react", variant: "destructive" });
+      return;
+    }
+    const key = getReactionKey(dayNumber, activityIndex);
+    const current = reactions.get(key)?.user_reaction;
+    
+    if (current === reaction) {
+      await removeReaction(tripId, dayNumber, activityIndex);
+    } else {
+      await addReaction(tripId, dayNumber, activityIndex, reaction);
+    }
+    loadReactions();
+  }, [tripId, user, reactions, loadReactions]);
 
   const handleShare = async () => {
     const shareUrl = `https://outthegroupchatco.com/trip/${shareCode}`;
@@ -344,11 +380,42 @@ export function TripReadyStep({
         />
       </motion.div>
 
-      {/* Cost Summary with Activity Selection */}
+      {/* Itinerary Section - Now before Cost Summary */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
+        className="space-y-4"
+      >
+        <h2 className="text-lg font-semibold text-foreground">Your Itinerary</h2>
+        
+        {(itineraryStatus === 'pending' || itineraryStatus === 'generating') && (
+          <ItinerarySkeleton />
+        )}
+        
+        {itineraryStatus === 'complete' && itinerary && (
+          <ItineraryView 
+            itinerary={itinerary}
+            reactions={reactions}
+            onReact={handleReact}
+            canReact={!!user}
+          />
+        )}
+        
+        {itineraryStatus === 'failed' && (
+          <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
+            <p className="text-sm text-destructive">
+              Couldn't generate itinerary. You can still share your trip!
+            </p>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Cost Summary with Activity Selection - Now after Itinerary */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
       >
         <CostSummary
           breakdown={tripResult.breakdown}
@@ -363,32 +430,6 @@ export function TripReadyStep({
           onAddDayActivities={handleAddDayActivities}
           onRemoveDayActivities={handleRemoveDayActivities}
         />
-      </motion.div>
-
-      {/* Itinerary Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35 }}
-        className="space-y-4"
-      >
-        <h2 className="text-lg font-semibold text-foreground">Your Itinerary</h2>
-        
-        {(itineraryStatus === 'pending' || itineraryStatus === 'generating') && (
-          <ItinerarySkeleton />
-        )}
-        
-        {itineraryStatus === 'complete' && itinerary && (
-          <ItineraryView itinerary={itinerary} />
-        )}
-        
-        {itineraryStatus === 'failed' && (
-          <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
-            <p className="text-sm text-destructive">
-              Couldn't generate itinerary. You can still share your trip!
-            </p>
-          </div>
-        )}
       </motion.div>
 
       {/* Share Button Only */}

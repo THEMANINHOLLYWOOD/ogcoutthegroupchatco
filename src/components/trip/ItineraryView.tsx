@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Itinerary } from "@/lib/tripTypes";
 import { DayCard } from "./DayCard";
 import { cn } from "@/lib/utils";
-import { ReactionsMap } from "@/lib/reactionService";
+import { ReactionsMap, getReactionKey } from "@/lib/reactionService";
 
 interface ItineraryViewProps {
   itinerary: Itinerary;
@@ -23,6 +23,23 @@ export function ItineraryView({
   canReact,
 }: ItineraryViewProps) {
   const [activeDay, setActiveDay] = useState(1);
+
+  // Helper to count total reactions for a day
+  const getDayReactionCount = (dayNumber: number): number => {
+    if (!reactions) return 0;
+    const day = itinerary.days.find(d => d.day_number === dayNumber);
+    if (!day) return 0;
+    
+    let count = 0;
+    day.activities.forEach((_, index) => {
+      const key = getReactionKey(dayNumber, index);
+      const reaction = reactions.get(key);
+      if (reaction) {
+        count += reaction.thumbs_up + reaction.thumbs_down;
+      }
+    });
+    return count;
+  };
 
   return (
     <div className="space-y-6">
@@ -55,20 +72,26 @@ export function ItineraryView({
       {/* Day Navigation */}
       <div className="sticky top-14 z-40 -mx-4 px-4 py-3 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {itinerary.days.map((day) => (
-            <button
-              key={day.day_number}
-              onClick={() => setActiveDay(day.day_number)}
-              className={cn(
-                "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
-                activeDay === day.day_number
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              )}
-            >
-              Day {day.day_number}
-            </button>
-          ))}
+          {itinerary.days.map((day) => {
+            const reactionCount = getDayReactionCount(day.day_number);
+            return (
+              <button
+                key={day.day_number}
+                onClick={() => setActiveDay(day.day_number)}
+                className={cn(
+                  "flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
+                  activeDay === day.day_number
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                <span>Day {day.day_number}</span>
+                {reactionCount > 0 && (
+                  <span className="text-xs opacity-70">· {reactionCount}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
