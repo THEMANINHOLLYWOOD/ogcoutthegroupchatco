@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { TripResult, Traveler, Itinerary, TravelerCost } from "@/lib/tripTypes";
 import { Airport } from "@/lib/airportSearch";
 import { CountdownTimer } from "@/components/trip/CountdownTimer";
+import { TripGroupImage } from "@/components/trip/TripGroupImage";
+import { EditTripModal } from "@/components/trip/EditTripModal";
 import { TravelerPaymentStatus } from "@/components/trip/TravelerPaymentStatus";
 import { CostSummary } from "@/components/trip/CostSummary";
 import { ItineraryView } from "@/components/trip/ItineraryView";
@@ -16,6 +18,7 @@ interface TripReadyStepProps {
   tripId: string;
   tripResult: TripResult;
   destination: Airport;
+  origin: Airport;
   departureDate: Date;
   returnDate: Date;
   travelers: Traveler[];
@@ -23,21 +26,41 @@ interface TripReadyStepProps {
   itineraryStatus: 'pending' | 'generating' | 'complete' | 'failed';
   shareCode: string;
   expiresAt: string;
+  onTripUpdate?: (newData: {
+    tripResult: TripResult;
+    destination: Airport;
+    origin: Airport;
+    departureDate: Date;
+    returnDate: Date;
+    expiresAt: string;
+  }) => void;
 }
 
 export function TripReadyStep({
-  tripResult,
-  destination,
-  departureDate,
-  returnDate,
+  tripId,
+  tripResult: initialTripResult,
+  destination: initialDestination,
+  origin: initialOrigin,
+  departureDate: initialDepartureDate,
+  returnDate: initialReturnDate,
   travelers,
   itinerary,
   itineraryStatus,
   shareCode,
-  expiresAt,
+  expiresAt: initialExpiresAt,
+  onTripUpdate,
 }: TripReadyStepProps) {
+  const [tripResult, setTripResult] = useState(initialTripResult);
+  const [destination, setDestination] = useState(initialDestination);
+  const [origin, setOrigin] = useState(initialOrigin);
+  const [departureDate, setDepartureDate] = useState(initialDepartureDate);
+  const [returnDate, setReturnDate] = useState(initialReturnDate);
+  const [expiresAt, setExpiresAt] = useState(initialExpiresAt);
+  
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
   const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [groupImageKey, setGroupImageKey] = useState(0);
   
   const nights = Math.ceil((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -47,23 +70,6 @@ export function TripReadyStep({
     user_id: travelers[index]?.user_id,
     avatar_url: travelers[index]?.avatar_url,
   }));
-
-  const handleCopyLink = async () => {
-    const shareUrl = `https://outthegroupchatco.com/trip/${shareCode}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast({
-        title: "Link copied!",
-        description: "Share it with your group",
-      });
-    } catch {
-      toast({
-        title: "Couldn't copy",
-        description: shareUrl,
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleShare = async () => {
     const shareUrl = `https://outthegroupchatco.com/trip/${shareCode}`;
@@ -76,10 +82,34 @@ export function TripReadyStep({
         });
       } catch {
         // User cancelled or share failed, fall back to copy
-        handleCopyLink();
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          toast({
+            title: "Link copied!",
+            description: "Share it with your group",
+          });
+        } catch {
+          toast({
+            title: "Couldn't copy",
+            description: shareUrl,
+            variant: "destructive",
+          });
+        }
       }
     } else {
-      handleCopyLink();
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast({
+          title: "Link copied!",
+          description: "Share it with your group",
+        });
+      } catch {
+        toast({
+          title: "Couldn't copy",
+          description: shareUrl,
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -161,10 +191,29 @@ export function TripReadyStep({
   const handleExpire = useCallback(() => {
     toast({
       title: "Time expired",
-      description: "Prices may have changed. Please search again for current rates.",
+      description: "Edit trip to refresh prices.",
       variant: "destructive",
     });
   }, []);
+
+  const handleTripUpdate = useCallback((newData: {
+    tripResult: TripResult;
+    destination: Airport;
+    origin: Airport;
+    departureDate: Date;
+    returnDate: Date;
+    expiresAt: string;
+  }) => {
+    setTripResult(newData.tripResult);
+    setDestination(newData.destination);
+    setOrigin(newData.origin);
+    setDepartureDate(newData.departureDate);
+    setReturnDate(newData.returnDate);
+    setExpiresAt(newData.expiresAt);
+    // Force re-render of group image
+    setGroupImageKey(prev => prev + 1);
+    onTripUpdate?.(newData);
+  }, [onTripUpdate]);
 
   return (
     <motion.div
@@ -172,20 +221,33 @@ export function TripReadyStep({
       animate={{ opacity: 1, y: 0 }}
       className="max-w-lg mx-auto space-y-6"
     >
-      {/* Countdown Timer */}
+      {/* Countdown Timer with Edit Button */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.1 }}
       >
-        <CountdownTimer expiresAt={expiresAt} onExpire={handleExpire} />
+        <CountdownTimer 
+          expiresAt={expiresAt} 
+          onExpire={handleExpire}
+          onEdit={() => setIsEditModalOpen(true)}
+        />
       </motion.div>
+
+      {/* AI-Generated Group Image */}
+      <TripGroupImage
+        key={groupImageKey}
+        tripId={tripId}
+        destinationCity={destination.city}
+        destinationCountry={destination.country}
+        travelers={travelers}
+      />
 
       {/* Destination Card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
+        transition={{ delay: 0.2 }}
         className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-5 border border-primary/10"
       >
         <div className="flex items-start gap-4">
@@ -226,7 +288,7 @@ export function TripReadyStep({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.25 }}
         className="bg-background border border-border rounded-2xl p-4"
       >
         <TravelerPaymentStatus
@@ -241,7 +303,7 @@ export function TripReadyStep({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
+        transition={{ delay: 0.3 }}
       >
         <CostSummary
           breakdown={tripResult.breakdown}
@@ -262,7 +324,7 @@ export function TripReadyStep({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.35 }}
         className="space-y-4"
       >
         <h2 className="text-lg font-semibold text-foreground">Your Itinerary</h2>
@@ -288,7 +350,7 @@ export function TripReadyStep({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35 }}
+        transition={{ delay: 0.4 }}
         className="pt-4"
       >
         <Button
@@ -304,6 +366,19 @@ export function TripReadyStep({
       <p className="text-xs text-muted-foreground text-center">
         Prices are estimates and may vary. Final prices confirmed at booking.
       </p>
+
+      {/* Edit Trip Modal */}
+      <EditTripModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        currentDestination={destination}
+        currentOrigin={origin}
+        currentDepartureDate={departureDate}
+        currentReturnDate={returnDate}
+        travelers={travelers}
+        tripId={tripId}
+        onUpdateComplete={handleTripUpdate}
+      />
     </motion.div>
   );
 }

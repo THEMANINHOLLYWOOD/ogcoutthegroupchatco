@@ -286,6 +286,7 @@ export default function CreateTrip() {
                 tripId={tripId}
                 tripResult={tripResult}
                 destination={destination}
+                origin={origin}
                 departureDate={departureDate}
                 returnDate={returnDate}
                 travelers={travelers}

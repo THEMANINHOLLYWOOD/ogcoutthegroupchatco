@@ -17,9 +17,10 @@ serve(async (req) => {
   }
 
   try {
-    const { tripId, userId, destinationCity, destinationCountry, travelers, travelerCount } = await req.json();
+    const { tripId, userId, destinationCity, destinationCountry, travelers, travelerCount, type, regenerate } = await req.json();
 
-    console.log(`Generating share image for trip ${tripId}, user: ${userId || 'anonymous'}`);
+    const isGroupImage = type === "group";
+    console.log(`Generating ${isGroupImage ? 'group' : 'personal'} image for trip ${tripId}`);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -31,85 +32,98 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Determine storage path - per-user if userId provided
-    const fileName = userId 
-      ? `share-images/${tripId}/${userId}.png`
-      : `share-images/${tripId}.png`;
+    // Determine storage path based on type
+    const fileName = isGroupImage
+      ? `share-images/${tripId}/group.png`
+      : userId 
+        ? `share-images/${tripId}/${userId}.png`
+        : `share-images/${tripId}.png`;
 
-    // Check for existing cached image (only for per-user requests)
-    if (userId) {
-      const { data: existingFiles } = await supabase.storage
-        .from("travel-media")
-        .list(`share-images/${tripId}`, {
-          search: `${userId}.png`
-        });
-
-      if (existingFiles && existingFiles.length > 0) {
-        console.log("Found cached image for user, returning cached URL");
-        const { data: urlData } = supabase.storage
+    // Check for existing cached image (skip if regenerate flag is true)
+    if (!regenerate) {
+      const searchPath = isGroupImage ? "group.png" : userId ? `${userId}.png` : null;
+      if (searchPath) {
+        const { data: existingFiles } = await supabase.storage
           .from("travel-media")
-          .getPublicUrl(fileName);
-        
-        return new Response(
-          JSON.stringify({ success: true, imageUrl: urlData.publicUrl, cached: true }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+          .list(`share-images/${tripId}`, { search: searchPath });
+
+        if (existingFiles && existingFiles.length > 0) {
+          console.log("Found cached image, returning cached URL");
+          const { data: urlData } = supabase.storage
+            .from("travel-media")
+            .getPublicUrl(fileName);
+          
+          return new Response(
+            JSON.stringify({ success: true, imageUrl: urlData.publicUrl, cached: true }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
-    // Get avatar URL - either from userId lookup or legacy travelers array
-    let avatarUrl: string | null = null;
+    // Collect avatar URLs from travelers
+    const travelerList: TravelerData[] = travelers || [];
+    const avatarUrls = travelerList
+      .map(t => t.avatar_url)
+      .filter((url): url is string => !!url);
 
-    if (userId) {
-      // Fetch the requesting user's profile avatar
-      const { data: profile, error: profileError } = await supabase
+    // For personal images, fetch the requesting user's profile avatar
+    let personalAvatarUrl: string | null = null;
+    if (!isGroupImage && userId) {
+      const { data: profile } = await supabase
         .from("profiles")
-        .select("avatar_url, full_name")
+        .select("avatar_url")
         .eq("id", userId)
         .single();
 
-      if (!profileError && profile?.avatar_url) {
-        avatarUrl = profile.avatar_url;
-        console.log(`Using profile avatar for user ${userId}`);
-      }
-    } else if (travelers) {
-      // Legacy: use first traveler with avatar from travelers array
-      const travelerList: TravelerData[] = travelers || [];
-      const avatarUrls = travelerList
-        .map(t => t.avatar_url)
-        .filter((url): url is string => !!url);
-      
-      if (avatarUrls.length > 0) {
-        avatarUrl = avatarUrls[0];
-        console.log("Using legacy traveler avatar");
+      if (profile?.avatar_url) {
+        personalAvatarUrl = profile.avatar_url;
       }
     }
 
-    const count = travelers?.length || travelerCount || 1;
-    console.log(`Destination: ${destinationCity}, ${destinationCountry}, Avatar: ${avatarUrl ? 'yes' : 'no'}`);
+    const count = travelerList.length || travelerCount || 1;
+    console.log(`Destination: ${destinationCity}, ${destinationCountry}, Avatars: ${avatarUrls.length}`);
 
-    // Build the prompt - personalized if we have an avatar
-    const basePrompt = avatarUrl
-      ? `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
+    // Build the prompt based on type and available avatars
+    let basePrompt: string;
+    
+    if (isGroupImage && avatarUrls.length > 0) {
+      basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
+Show ${count} friends together enjoying a famous landmark, golden hour lighting, vibrant colors.
+Use the reference photos to create realistic depictions of these people at the destination.
+Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
+The friends should look happy and excited together, capturing a perfect travel memory.`;
+    } else if (personalAvatarUrl) {
+      basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
 Show a happy traveler enjoying a famous landmark, golden hour lighting, vibrant colors.
 Use the reference photo to create a realistic depiction of this person at the destination.
 Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
-The person should look excited and joyful, capturing a perfect travel memory.`
-      : `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
+The person should look excited and joyful, capturing a perfect travel memory.`;
+    } else {
+      basePrompt = `Create a stunning ultra-wide cinematic travel photo at ${destinationCity}, ${destinationCountry}.
 Show ${count} diverse friends enjoying a famous landmark, golden hour lighting, vibrant colors.
 Professional travel photography style, Instagram-worthy, 16:9 aspect ratio.
 The friends should look happy and excited, capturing a perfect travel memory together.`;
+    }
 
     // Build multi-modal content array
     const contentArray: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
       { type: "text", text: basePrompt }
     ];
 
-    // Add reference photo if available
-    if (avatarUrl) {
+    // Add reference photos
+    if (isGroupImage && avatarUrls.length > 0) {
+      // Add up to 4 avatar references for group image
+      for (const url of avatarUrls.slice(0, 4)) {
+        contentArray.push({
+          type: "image_url",
+          image_url: { url }
+        });
+      }
+    } else if (personalAvatarUrl) {
       contentArray.push({
         type: "image_url",
-        image_url: { url: avatarUrl }
+        image_url: { url: personalAvatarUrl }
       });
     }
 
@@ -181,8 +195,8 @@ The friends should look happy and excited, capturing a perfect travel memory tog
     const imageUrl = urlData.publicUrl;
     console.log("Image uploaded successfully:", imageUrl);
 
-    // Only update trip share_image_url for legacy (non-user) calls
-    if (!userId) {
+    // Only update trip share_image_url for legacy (non-user, non-group) calls
+    if (!userId && !isGroupImage) {
       const { error: updateError } = await supabase
         .from("trips")
         .update({ share_image_url: imageUrl })
