@@ -1,20 +1,16 @@
 import { motion } from "framer-motion";
 import { format, parseISO } from "date-fns";
-import { DayPlan, Activity } from "@/lib/tripTypes";
+import { DayPlan } from "@/lib/tripTypes";
 import { ActivityBubble } from "./ActivityBubble";
 
 interface DayCardProps {
   day: DayPlan;
   isActive: boolean;
-  searchingActivity?: number | null;
-  onFindAlternative?: (activityIndex: number, direction: 'cheaper' | 'pricier') => void;
 }
 
 export function DayCard({ 
   day, 
   isActive, 
-  searchingActivity,
-  onFindAlternative,
 }: DayCardProps) {
   const date = parseISO(day.date);
 
@@ -51,17 +47,6 @@ export function DayCard({
             key={`${day.day_number}-${index}-${activity.title}`}
             activity={activity}
             index={index}
-            isSearching={searchingActivity === index}
-            onFindCheaper={
-              onFindAlternative && activity.estimated_cost
-                ? () => onFindAlternative(index, 'cheaper')
-                : undefined
-            }
-            onFindPricier={
-              onFindAlternative && activity.estimated_cost
-                ? () => onFindAlternative(index, 'pricier')
-                : undefined
-            }
           />
         ))}
       </div>
