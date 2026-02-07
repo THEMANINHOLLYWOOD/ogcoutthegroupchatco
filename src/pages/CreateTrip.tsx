@@ -1,27 +1,27 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { TripDetailsStep } from "@/components/trip-wizard/TripDetailsStep";
 import { AddTravelersStep } from "@/components/trip-wizard/AddTravelersStep";
 import { SearchingStep } from "@/components/trip-wizard/SearchingStep";
-import { TripSummaryStep } from "@/components/trip-wizard/TripSummaryStep";
+import { TripReadyStep } from "@/components/trip-wizard/TripReadyStep";
 import { Airport } from "@/lib/airportSearch";
-import { Traveler, TripResult } from "@/lib/tripTypes";
+import { Traveler, TripResult, Itinerary, SavedTrip } from "@/lib/tripTypes";
 import { searchTrip } from "@/lib/tripSearch";
-import { saveTrip } from "@/lib/tripService";
+import { saveTrip, generateItinerary, subscribeToTripUpdates } from "@/lib/tripService";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserDocument, SavedDocument } from "@/lib/travelerService";
 
-type Step = "trip-details" | "travelers" | "searching" | "summary";
+type Step = "trip-details" | "travelers" | "searching" | "ready";
 
 const stepNumbers: Record<Step, number> = {
   "trip-details": 1,
   travelers: 2,
   searching: 2,
-  summary: 3,
+  ready: 3,
 };
 
 const totalSteps = 3;
@@ -30,7 +30,6 @@ export default function CreateTrip() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [step, setStep] = useState<Step>("trip-details");
-  const [isSharing, setIsSharing] = useState(false);
   
   // Trip state
   const [destination, setDestination] = useState<Airport | null>(null);
@@ -40,6 +39,14 @@ export default function CreateTrip() {
   const [travelers, setTravelers] = useState<Traveler[]>([]);
   const [tripResult, setTripResult] = useState<TripResult | null>(null);
   const [savedDocument, setSavedDocument] = useState<SavedDocument | null>(null);
+  
+  // New state for consolidated ready step
+  const [tripId, setTripId] = useState<string | null>(null);
+  const [shareCode, setShareCode] = useState<string>("");
+  const [itinerary, setItinerary] = useState<Itinerary | null>(null);
+  const [itineraryStatus, setItineraryStatus] = useState<SavedTrip["itinerary_status"]>("pending");
+  
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Fetch user's saved travel document on mount
   useEffect(() => {
@@ -51,6 +58,15 @@ export default function CreateTrip() {
       });
     }
   }, [user?.id]);
+
+  // Cleanup realtime subscription on unmount
+  useEffect(() => {
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, []);
 
   // Get organizer name from profile or default
   const organizerName = profile?.full_name || "Traveler";
@@ -100,7 +116,66 @@ export default function CreateTrip() {
 
     if (result.success && result.data) {
       setTripResult(result.data);
-      setStep("summary");
+      
+      // Save trip immediately after search succeeds
+      const saveResult = await saveTrip({
+        organizerName,
+        destinationCity: destination!.city,
+        destinationCountry: destination!.country,
+        destinationIata: destination!.iata,
+        departureDate: format(departureDate!, "yyyy-MM-dd"),
+        returnDate: format(returnDate!, "yyyy-MM-dd"),
+        travelers: result.data.breakdown,
+        flights: result.data.flights,
+        accommodation: result.data.accommodation,
+        costBreakdown: result.data.breakdown,
+        totalPerPerson: result.data.total_per_person,
+        tripTotal: result.data.trip_total,
+      });
+
+      if (saveResult.success && saveResult.tripId) {
+        setTripId(saveResult.tripId);
+        
+        // Fetch trip to get share code
+        const { supabase } = await import("@/integrations/supabase/client");
+        const { data: tripData } = await supabase
+          .from("trips")
+          .select("share_code")
+          .eq("id", saveResult.tripId)
+          .single();
+        
+        if (tripData) {
+          setShareCode((tripData as { share_code: string }).share_code);
+        }
+        
+        // Start itinerary generation
+        generateItinerary(
+          saveResult.tripId,
+          destination!.city,
+          destination!.country,
+          format(departureDate!, "yyyy-MM-dd"),
+          format(returnDate!, "yyyy-MM-dd"),
+          travelersList.length,
+          result.data.accommodation?.name
+        );
+        
+        // Subscribe to realtime updates
+        const unsubscribe = await subscribeToTripUpdates(saveResult.tripId, (updatedTrip) => {
+          setItinerary(updatedTrip.itinerary);
+          setItineraryStatus(updatedTrip.itinerary_status);
+        });
+        unsubscribeRef.current = unsubscribe;
+        
+        // Move to ready step
+        setStep("ready");
+      } else {
+        toast({
+          title: "Failed to save trip",
+          description: saveResult.error || "Please try again",
+          variant: "destructive",
+        });
+        setStep("travelers");
+      }
     } else {
       toast({
         title: "Search Failed",
@@ -112,46 +187,18 @@ export default function CreateTrip() {
   }, [organizerName, destination, origin, departureDate, returnDate, savedDocument]);
 
   const handleEditTrip = useCallback(() => {
+    // Cleanup subscription when going back to edit
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
     setStep("trip-details");
     setTripResult(null);
+    setTripId(null);
+    setShareCode("");
+    setItinerary(null);
+    setItineraryStatus("pending");
   }, []);
-
-  const handleShareTrip = useCallback(async () => {
-    if (!tripResult || !destination || !departureDate || !returnDate) return;
-    
-    setIsSharing(true);
-    toast({
-      title: "Creating your trip...",
-      description: "Hang tight while we set everything up",
-    });
-    
-    const result = await saveTrip({
-      organizerName,
-      destinationCity: destination.city,
-      destinationCountry: destination.country,
-      destinationIata: destination.iata,
-      departureDate: format(departureDate, "yyyy-MM-dd"),
-      returnDate: format(returnDate, "yyyy-MM-dd"),
-      travelers: tripResult.breakdown,
-      flights: tripResult.flights,
-      accommodation: tripResult.accommodation,
-      costBreakdown: tripResult.breakdown,
-      totalPerPerson: tripResult.total_per_person,
-      tripTotal: tripResult.trip_total,
-    });
-
-    setIsSharing(false);
-
-    if (result.success && result.tripId) {
-      navigate(`/trip/${result.tripId}`);
-    } else {
-      toast({
-        title: "Failed to create trip",
-        description: result.error || "Please try again",
-        variant: "destructive",
-      });
-    }
-  }, [tripResult, destination, departureDate, returnDate, organizerName, navigate]);
 
   const currentStepNumber = stepNumbers[step];
 
@@ -221,21 +268,24 @@ export default function CreateTrip() {
             </motion.div>
           )}
 
-          {step === "summary" && tripResult && destination && departureDate && returnDate && (
+          {step === "ready" && tripResult && destination && departureDate && returnDate && tripId && (
             <motion.div
-              key="summary"
+              key="ready"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <TripSummaryStep
-                result={tripResult}
+              <TripReadyStep
+                tripId={tripId}
+                tripResult={tripResult}
                 destination={destination}
                 departureDate={departureDate}
                 returnDate={returnDate}
                 travelers={travelers}
+                itinerary={itinerary}
+                itineraryStatus={itineraryStatus}
+                shareCode={shareCode}
                 onEdit={handleEditTrip}
-                onShare={handleShareTrip}
               />
             </motion.div>
           )}
