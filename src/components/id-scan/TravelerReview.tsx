@@ -39,7 +39,6 @@ export function TravelerReview({
   onChange,
 }: TravelerReviewProps) {
   const { user } = useAuth();
-  const [saveToProfile, setSaveToProfile] = useState(false);
   const [saveAsCompanion, setSaveAsCompanion] = useState(false);
   const [companionNickname, setCompanionNickname] = useState("");
   const [saving, setSaving] = useState(false);
@@ -62,23 +61,21 @@ export function TravelerReview({
     }
 
     // Handle saving if user is authenticated
-    if (user && (saveToProfile || saveAsCompanion)) {
+    if (user) {
       setSaving(true);
       
-      if (saveToProfile) {
-        const result = await saveUserDocument(user.id, data);
-        if (!result.success) {
-          toast.error("Failed to save to profile");
-          setSaving(false);
-          return;
-        }
-        toast.success("Saved to your profile");
+      // Auto-save to user's profile (no toggle needed)
+      const result = await saveUserDocument(user.id, data);
+      if (result.success) {
+        toast.success("Saved to your profile for future trips");
       }
+      // Don't block on failure - just log it
 
+      // Save as companion if requested
       if (saveAsCompanion && companionNickname.trim()) {
         const companionInput = travelerInfoToCompanion(data, companionNickname.trim());
-        const result = await saveCompanion(user.id, companionInput);
-        if (!result.success) {
+        const companionResult = await saveCompanion(user.id, companionInput);
+        if (!companionResult.success) {
           toast.error("Failed to save companion");
           setSaving(false);
           return;
@@ -145,28 +142,19 @@ export function TravelerReview({
       {/* Save Options (for authenticated users) */}
       {user && (
         <div className="space-y-3 mb-6">
-          {/* Save to Profile */}
+          {/* Auto-save notice */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between p-4 bg-muted/30 rounded-xl"
+            className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl border border-primary/10"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <span className="font-medium text-foreground text-sm">Save to My Profile</span>
-                <p className="text-xs text-muted-foreground">Auto-fill on future trips</p>
-              </div>
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <User className="w-4 h-4 text-primary" />
             </div>
-            <Switch 
-              checked={saveToProfile} 
-              onCheckedChange={(checked) => {
-                setSaveToProfile(checked);
-                if (checked) setSaveAsCompanion(false);
-              }} 
-            />
+            <div>
+              <span className="font-medium text-foreground text-sm">Your info will be saved</span>
+              <p className="text-xs text-muted-foreground">Auto-fill on future trips</p>
+            </div>
           </motion.div>
 
           {/* Save as Companion */}
@@ -187,10 +175,7 @@ export function TravelerReview({
             </div>
             <Switch 
               checked={saveAsCompanion} 
-              onCheckedChange={(checked) => {
-                setSaveAsCompanion(checked);
-                if (checked) setSaveToProfile(false);
-              }} 
+              onCheckedChange={setSaveAsCompanion} 
             />
           </motion.div>
 
