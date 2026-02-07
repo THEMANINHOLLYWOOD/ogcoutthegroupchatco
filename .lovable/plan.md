@@ -1,38 +1,27 @@
 
-# Streamlined Trip Creation Flow
+# Enhanced Trip Ready Page
 
 ## Overview
-Consolidate the post-search experience into a single, clean page. After users click "Search Flights," they'll see a unified "Your trip is ready" view that includes the cost breakdown, the itinerary (loading in background), and share functionality—all without navigating through multiple pages.
+Transform the trip ready page from a static success state into a dynamic command center. Instead of showing "Your trip is ready!", it will immediately display the 24-hour countdown timer to lock in prices, allow users to add itinerary activities to the cost breakdown, and track which travelers have paid.
 
-## Current Flow (5 steps)
-```text
-Trip Details → Travelers → Searching → Summary → Share → TripView (itinerary)
-```
+## Current State
+The TripReadyStep currently shows:
+- "Your trip is ready!" success message with checkmark
+- Destination card with dates and group size
+- Collapsible cost breakdown (base costs only)
+- Streaming itinerary
+- Share button, Copy link, Edit trip details
 
-## Proposed Flow (3 steps)
-```text
-Trip Details → Travelers → Searching → Consolidated Ready Page (with itinerary loading)
-```
+## Proposed Changes
 
----
-
-## User Experience
-
-### What Changes
-1. After flight search completes, save the trip immediately (in background)
-2. Show the "Your trip is ready" success header
-3. Display cost breakdown inline
-4. Show itinerary skeleton that streams in as it generates via Realtime
-5. Include share button directly on this page
-6. No separate Summary → TripView navigation
-
-### Visual Layout (Consolidated Page)
+### Visual Layout
 ```text
 ┌─────────────────────────────────────┐
 │ ← Back                    Share ↗   │
 ├─────────────────────────────────────┤
 │                                     │
-│         ✓ Your trip is ready        │
+│         ⏱️ 23:45:32                  │
+│    Time remaining to lock in        │
 │                                     │
 │     ┌─────────────────────────┐     │
 │     │  📍 Miami, Florida      │     │
@@ -40,16 +29,21 @@ Trip Details → Travelers → Searching → Consolidated Ready Page (with itine
 │     │  3 travelers            │     │
 │     └─────────────────────────┘     │
 │                                     │
-│  ── Cost Breakdown ──               │
-│  Trip Total: $2,400                 │
-│  ~$800/person                       │
-│  [Expandable per-person details]    │
+│  ── Travelers ──                    │
+│  [Avatar] John Smith    [Pay]       │
+│  [Avatar] Jane Doe      [✓ Paid]    │
+│  2/3 paid                           │
+│                                     │
+│  ── Trip Total ──                   │
+│  $2,400  (+$180 activities)         │
+│  ~$860/person                       │
+│  [Expandable with activity opts]    │
 │                                     │
 │  ── Your Itinerary ──               │
 │  [Skeleton → Streamed content]      │
 │                                     │
 │  ┌─────────────────────────────┐    │
-│  │     Share Trip Link         │    │
+│  │        Share Trip           │    │
 │  └─────────────────────────────┘    │
 │                                     │
 └─────────────────────────────────────┘
@@ -59,26 +53,57 @@ Trip Details → Travelers → Searching → Consolidated Ready Page (with itine
 
 ## Technical Implementation
 
-### Step 1: Modify the Flow Logic
-**File:** `src/pages/CreateTrip.tsx`
-
-- After `searchTrip()` succeeds, immediately call `saveTrip()` in the same handler
-- Store the returned `tripId` in state
-- Transition to a new `"ready"` step (or rename `"summary"` to consolidate)
-- Start `generateItinerary()` immediately after save
-- Subscribe to Realtime updates for itinerary streaming
-
-### Step 2: Create New Consolidated Component
+### Step 1: Update TripReadyStep Component
 **File:** `src/components/trip-wizard/TripReadyStep.tsx`
 
-This single component replaces `TripSummaryStep` and includes:
-- Success header with check icon
-- Destination card (city, dates, traveler count)
-- Collapsible cost breakdown (reuse existing `CostSummary` logic)
-- Itinerary section with skeleton → real content transition
-- Share button (copy link functionality)
+**Changes:**
+1. Replace success header (checkmark + "Your trip is ready!") with CountdownTimer
+2. Add TravelerPaymentStatus section with Pay buttons
+3. Replace simple cost collapsible with CostSummary component (includes activity selection)
+4. Add state for selected activities and paid travelers
+5. Remove "Copy link" and "Edit trip details" buttons
+6. Keep only the "Share Trip" button
 
-Props needed:
+### Step 2: Add Activity Cost Selection
+Integrate the existing CostSummary component which already supports:
+- Selecting activities to add to the total
+- Day-by-day activity cost breakdown
+- Per-person activity cost adjustments
+
+### Step 3: Add Payment Tracking
+Integrate the existing TravelerPaymentStatus component:
+- Show each traveler with their cost
+- Pay button for each traveler
+- Track paid status in local state
+- Display paid count (e.g., "2/3 paid")
+
+### Step 4: Set Link Expiration
+When the trip is saved, set the 24-hour expiration time so the countdown starts immediately.
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/trip-wizard/TripReadyStep.tsx` | Add countdown, payment status, activity selection; remove copy link and edit buttons |
+| `src/pages/CreateTrip.tsx` | Pass expiration time to TripReadyStep, set link_created_at and link_expires_at on save |
+
+## Components to Reuse
+
+| Component | Purpose |
+|-----------|---------|
+| `CountdownTimer` | 24-hour countdown display |
+| `TravelerPaymentStatus` | Track who has paid |
+| `CostSummary` | Activity selection and dynamic total |
+
+---
+
+## Detailed Changes
+
+### TripReadyStep.tsx Updates
+
+**New Props:**
 ```typescript
 interface TripReadyStepProps {
   tripId: string;
@@ -90,87 +115,53 @@ interface TripReadyStepProps {
   itinerary: Itinerary | null;
   itineraryStatus: 'pending' | 'generating' | 'complete' | 'failed';
   shareCode: string;
-  onEdit: () => void;
+  expiresAt: string;  // NEW: 24-hour expiration timestamp
 }
 ```
 
-### Step 3: Integrate Realtime Subscription
-**File:** `src/pages/CreateTrip.tsx`
+**New State:**
+```typescript
+const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
+const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+```
 
-- After saving trip, subscribe to `subscribeToTripUpdates(tripId, ...)`
-- Update local itinerary state as it streams in
-- Pass itinerary + status to `TripReadyStep`
+**Removed Elements:**
+- Success checkmark and "Your trip is ready!" header
+- "Copy link" button
+- "Edit trip details" button
+- `onEdit` prop
 
-### Step 4: Clean Up Unused Components
-- Remove `TripSummaryStep.tsx` (replaced by `TripReadyStep`)
-- Keep `SearchingStep` as the loading state before results
+**Added Elements:**
+- CountdownTimer at the top (replaces success header)
+- TravelerPaymentStatus section
+- CostSummary with activity selection (replaces simple collapsible)
 
-### Step 5: Update Share Functionality
-- The share button on the ready page copies the trip link directly
-- Format: `outthegroupchatco.com/trip/{shareCode}`
-- Toast confirmation when copied
+### CreateTrip.tsx Updates
+
+**On Save:**
+- Calculate expiration time (24 hours from now)
+- Store in state and pass to TripReadyStep
+
+```typescript
+const expiresAt = new Date();
+expiresAt.setHours(expiresAt.getHours() + 24);
+setExpiresAt(expiresAt.toISOString());
+```
 
 ---
 
-## Files to Modify
+## User Flow
 
-| File | Changes |
-|------|---------|
-| `src/pages/CreateTrip.tsx` | Add trip save logic, realtime subscription, new step flow |
-| `src/components/trip-wizard/TripReadyStep.tsx` | **New file** - consolidated ready view |
-| `src/components/trip-wizard/TripSummaryStep.tsx` | Remove (no longer needed) |
-
-## Files to Reuse (No Changes)
-
-| File | Purpose |
-|------|---------|
-| `src/components/trip/ItineraryView.tsx` | Display completed itinerary |
-| `src/components/trip/ItinerarySkeleton.tsx` | Loading state for itinerary |
-| `src/components/trip-wizard/CostBreakdown.tsx` | Per-traveler cost display |
-| `src/lib/tripService.ts` | `saveTrip`, `generateItinerary`, `subscribeToTripUpdates` |
-
----
-
-## Technical Details
-
-### Flow After Search Completes
-
-```typescript
-// In handleTravelersContinue, after searchTrip succeeds:
-const result = await searchTrip({...});
-
-if (result.success && result.data) {
-  setTripResult(result.data);
-  
-  // 1. Save trip immediately
-  const saveResult = await saveTrip({...});
-  
-  if (saveResult.success && saveResult.tripId) {
-    setTripId(saveResult.tripId);
-    
-    // 2. Trigger itinerary generation
-    generateItinerary(saveResult.tripId, ...);
-    
-    // 3. Subscribe to realtime updates
-    subscribeToTripUpdates(saveResult.tripId, (updatedTrip) => {
-      setItinerary(updatedTrip.itinerary);
-      setItineraryStatus(updatedTrip.itinerary_status);
-    });
-    
-    // 4. Move to ready step
-    setStep("ready");
-  }
-}
-```
-
-### Simplified Step Type
-
-```typescript
-type Step = "trip-details" | "travelers" | "searching" | "ready";
-```
-
-### Share Link Format
-
-```typescript
-const shareUrl = `https://outthegroupchatco.com/trip/${shareCode}`;
-```
+1. User clicks "Search Flights" → Searching animation
+2. Search completes → Trip saved → Ready page shows immediately
+3. Ready page displays:
+   - **24-hour countdown** at the top
+   - Destination card
+   - **Traveler payment status** with Pay buttons
+   - **Cost breakdown** with ability to add itinerary activities
+   - Itinerary (loading → streaming → complete)
+   - Share button only (no copy link, no edit)
+4. User can:
+   - Mark travelers as paid
+   - Add/remove activities to adjust final cost
+   - Share the trip with the group
