@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ import { saveTrip } from "@/lib/tripService";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { getUserDocument, SavedDocument } from "@/lib/travelerService";
 
 type Step = "trip-details" | "travelers" | "searching" | "summary";
 
@@ -38,6 +39,18 @@ export default function CreateTrip() {
   const [returnDate, setReturnDate] = useState<Date | null>(null);
   const [travelers, setTravelers] = useState<Traveler[]>([]);
   const [tripResult, setTripResult] = useState<TripResult | null>(null);
+  const [savedDocument, setSavedDocument] = useState<SavedDocument | null>(null);
+
+  // Fetch user's saved travel document on mount
+  useEffect(() => {
+    if (user?.id) {
+      getUserDocument(user.id).then((doc) => {
+        if (doc) {
+          setSavedDocument(doc);
+        }
+      });
+    }
+  }, [user?.id]);
 
   // Get organizer name from profile or default
   const organizerName = profile?.full_name || "Traveler";
@@ -54,14 +67,30 @@ export default function CreateTrip() {
     setTravelers(travelersList);
     setStep("searching");
 
+    // Use saved document info if available, otherwise fall back to profile name
+    const organizerInfo = savedDocument
+      ? {
+          first_name: savedDocument.first_name,
+          last_name: savedDocument.last_name,
+          document_type: savedDocument.document_type as "passport" | "drivers_license" | "national_id" | "unknown",
+          confidence: "high" as const,
+          full_legal_name: savedDocument.full_legal_name,
+          date_of_birth: savedDocument.date_of_birth,
+          document_number: savedDocument.document_number,
+          expiration_date: savedDocument.expiration_date,
+          nationality: savedDocument.nationality,
+          gender: savedDocument.gender as "M" | "F" | "X" | "unknown" | undefined,
+        }
+      : {
+          first_name: organizerName.split(" ")[0] || "Traveler",
+          last_name: organizerName.split(" ").slice(1).join(" ") || "",
+          document_type: "passport" as const,
+          confidence: "high" as const,
+        };
+
     // Call the search API
     const result = await searchTrip({
-      organizer: {
-        first_name: organizerName.split(" ")[0] || "Traveler",
-        last_name: organizerName.split(" ").slice(1).join(" ") || "",
-        document_type: "passport",
-        confidence: "high",
-      },
+      organizer: organizerInfo,
       destination: destination!,
       origin: origin!,
       travelers: travelersList,
@@ -80,7 +109,7 @@ export default function CreateTrip() {
       });
       setStep("travelers");
     }
-  }, [organizerName, destination, origin, departureDate, returnDate]);
+  }, [organizerName, destination, origin, departureDate, returnDate, savedDocument]);
 
   const handleEditTrip = useCallback(() => {
     setStep("trip-details");
