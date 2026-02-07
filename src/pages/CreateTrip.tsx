@@ -7,7 +7,7 @@ import { AddTravelersStep } from "@/components/trip-wizard/AddTravelersStep";
 import { SearchingStep } from "@/components/trip-wizard/SearchingStep";
 import { TripReadyStep } from "@/components/trip-wizard/TripReadyStep";
 import { Airport } from "@/lib/airportSearch";
-import { Traveler, TripResult, Itinerary, SavedTrip } from "@/lib/tripTypes";
+import { Traveler, TripResult, Itinerary, SavedTrip, AccommodationType } from "@/lib/tripTypes";
 import { searchTrip } from "@/lib/tripSearch";
 import { saveTrip, generateItinerary, subscribeToTripUpdates } from "@/lib/tripService";
 import { toast } from "@/hooks/use-toast";
@@ -39,6 +39,7 @@ export default function CreateTrip() {
   const [travelers, setTravelers] = useState<Traveler[]>([]);
   const [tripResult, setTripResult] = useState<TripResult | null>(null);
   const [savedDocument, setSavedDocument] = useState<SavedDocument | null>(null);
+  const [accommodationType, setAccommodationType] = useState<AccommodationType>("hotel");
   
   // New state for consolidated ready step
   const [tripId, setTripId] = useState<string | null>(null);
@@ -80,8 +81,9 @@ export default function CreateTrip() {
     setStep("travelers");
   }, []);
 
-  const handleTravelersContinue = useCallback(async (travelersList: Traveler[]) => {
+  const handleTravelersContinue = useCallback(async (travelersList: Traveler[], selectedAccommodationType: AccommodationType) => {
     setTravelers(travelersList);
+    setAccommodationType(selectedAccommodationType);
     setStep("searching");
 
     // Use saved document info if available, otherwise fall back to profile name
@@ -113,6 +115,7 @@ export default function CreateTrip() {
       travelers: travelersList,
       departureDate: departureDate!,
       returnDate: returnDate!,
+      accommodationType: selectedAccommodationType,
     });
 
     if (result.success && result.data) {

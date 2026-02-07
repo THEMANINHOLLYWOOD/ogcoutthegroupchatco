@@ -10,6 +10,8 @@ export interface Traveler {
   avatar_url?: string;   // Profile photo URL
 }
 
+export type AccommodationType = "airbnb" | "hotel";
+
 export interface TripSearch {
   organizer: TravelerInfo;
   destination: Airport;
@@ -17,6 +19,7 @@ export interface TripSearch {
   travelers: Traveler[];
   departureDate: Date;
   returnDate: Date;
+  accommodationType?: AccommodationType;
 }
 
 export interface FlightOption {

@@ -24,6 +24,7 @@ interface SearchRequest {
   travelers: TravelerRequest[];
   departureDate: string;
   returnDate: string;
+  accommodationType?: "airbnb" | "hotel";
 }
 
 serve(async (req) => {
@@ -40,7 +41,7 @@ serve(async (req) => {
     const request: SearchRequest = await req.json();
     console.log("Search trip request:", JSON.stringify(request));
 
-    const { destination, travelers, departureDate, returnDate } = request;
+    const { destination, travelers, departureDate, returnDate, accommodationType = "hotel" } = request;
 
     // Calculate number of nights
     const departure = new Date(departureDate);
@@ -52,6 +53,15 @@ serve(async (req) => {
       `- ${t.name}: Flying from ${t.origin.city} (${t.origin.iata}) to ${destination.city} (${destination.iata})`
     ).join("\n");
 
+    // Accommodation-specific prompt section
+    const accommodationPrompt = accommodationType === "airbnb"
+      ? `2. A well-rated Airbnb or vacation rental that can comfortably accommodate ${travelers.length} guests. 
+   Look for entire homes/apartments with good reviews, modern amenities, and central location.
+   Provide realistic nightly rates for vacation rentals in ${destination.city}.`
+      : `2. A mid-range hotel (3-4 star) with enough rooms for the group.
+   Consider hotels with good location, breakfast included if possible, and standard amenities.
+   Provide realistic nightly rates for hotels in ${destination.city}.`;
+
     const prompt = `You are a travel planning assistant. Search for realistic flight and accommodation pricing for a group trip.
 
 TRIP DETAILS:
@@ -60,13 +70,14 @@ TRIP DETAILS:
 - Return Date: ${returnDate}
 - Duration: ${nights} nights
 - Number of Travelers: ${travelers.length}
+- Accommodation Type: ${accommodationType === "airbnb" ? "Airbnb/Vacation Rental" : "Hotel"}
 
 TRAVELERS AND ROUTES:
 ${travelerRoutes}
 
 Please provide realistic current market estimates for:
 1. Round-trip flights for each traveler from their origin to ${destination.iata}
-2. A mid-range hotel/accommodation that can accommodate the group
+${accommodationPrompt}
 3. Calculate the per-person cost breakdown including their share of accommodation
 
 Use current 2024/2025 pricing estimates based on typical market rates for these routes.`;
