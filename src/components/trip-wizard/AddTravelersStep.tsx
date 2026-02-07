@@ -1,20 +1,21 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Users } from "lucide-react";
+import { Plus, ArrowRight, Users, Home, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TravelerCard } from "./TravelerCard";
 import { UserSearchPicker } from "./UserSearchPicker";
 import { ManualTravelerForm } from "./ManualTravelerForm";
 import { PlatformUserConfirm } from "./PlatformUserConfirm";
 import { Airport } from "@/lib/airportSearch";
-import { Traveler } from "@/lib/tripTypes";
+import { Traveler, AccommodationType } from "@/lib/tripTypes";
 import { PlatformUser } from "@/lib/userService";
+import { cn } from "@/lib/utils";
 
 interface AddTravelersStepProps {
   organizerName: string;
   defaultOrigin: Airport;
   destination: Airport;
-  onContinue: (travelers: Traveler[]) => void;
+  onContinue: (travelers: Traveler[], accommodationType: AccommodationType) => void;
   onBack: () => void;
 }
 
@@ -37,6 +38,7 @@ export function AddTravelersStep({
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
   const [pendingUser, setPendingUser] = useState<PlatformUser | null>(null);
+  const [accommodationType, setAccommodationType] = useState<AccommodationType>("hotel");
 
   const addPlatformUser = useCallback((user: PlatformUser, origin: Airport) => {
     const newTraveler: Traveler = {
@@ -69,7 +71,7 @@ export function AddTravelersStep({
   }, []);
 
   const handleContinue = () => {
-    onContinue(travelers);
+    onContinue(travelers, accommodationType);
   };
 
   const excludeUserIds = travelers
@@ -136,6 +138,39 @@ export function AddTravelersStep({
         </motion.button>
       )}
 
+      {/* Accommodation Type Selector */}
+      <div className="space-y-3 mb-6">
+        <p className="text-sm text-muted-foreground text-center">Where to stay</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setAccommodationType("airbnb")}
+            className={cn(
+              "p-4 rounded-2xl border-2 transition-all text-center",
+              accommodationType === "airbnb"
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/50"
+            )}
+          >
+            <Home className="w-6 h-6 mx-auto mb-2 text-foreground" />
+            <span className="text-sm font-medium text-foreground">Airbnb</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAccommodationType("hotel")}
+            className={cn(
+              "p-4 rounded-2xl border-2 transition-all text-center",
+              accommodationType === "hotel"
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/50"
+            )}
+          >
+            <Building2 className="w-6 h-6 mx-auto mb-2 text-foreground" />
+            <span className="text-sm font-medium text-foreground">Hotel</span>
+          </button>
+        </div>
+      </div>
+
       {/* User Search Picker */}
       <UserSearchPicker
         open={showUserSearch}
@@ -185,7 +220,7 @@ export function AddTravelersStep({
           onClick={handleContinue}
           className="flex-1 h-12 rounded-xl text-base font-medium"
         >
-          Search Flights
+          Create a Trip
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </div>

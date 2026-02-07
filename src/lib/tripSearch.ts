@@ -19,6 +19,7 @@ export interface SearchTripRequest {
   }>;
   departureDate: string;
   returnDate: string;
+  accommodationType?: "airbnb" | "hotel";
 }
 
 export async function searchTrip(tripSearch: TripSearch): Promise<{ success: boolean; data?: TripResult; error?: string }> {
@@ -39,6 +40,7 @@ export async function searchTrip(tripSearch: TripSearch): Promise<{ success: boo
     })),
     departureDate: format(tripSearch.departureDate, "yyyy-MM-dd"),
     returnDate: format(tripSearch.returnDate, "yyyy-MM-dd"),
+    accommodationType: tripSearch.accommodationType || "hotel",
   };
 
   try {
