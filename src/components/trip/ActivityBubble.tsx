@@ -2,10 +2,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Landmark, Utensils, Ticket, Plane, Coffee } from "lucide-react";
 import { Activity } from "@/lib/tripTypes";
 import { cn } from "@/lib/utils";
+import { ReactionBubbles } from "./ReactionBubbles";
+import { ReactionCounts } from "@/lib/reactionService";
 
 interface ActivityBubbleProps {
   activity: Activity;
   index: number;
+  dayNumber: number;
+  reactions?: ReactionCounts;
+  onReact?: (reaction: 'thumbs_up' | 'thumbs_down') => void;
+  canReact?: boolean;
 }
 
 const typeIcons = {
@@ -26,7 +32,11 @@ const typeColors = {
 
 export function ActivityBubble({ 
   activity, 
-  index, 
+  index,
+  dayNumber,
+  reactions,
+  onReact,
+  canReact = false,
 }: ActivityBubbleProps) {
   const Icon = typeIcons[activity.type] || Landmark;
   const colorClasses = typeColors[activity.type] || typeColors.attraction;
@@ -101,6 +111,17 @@ export function ActivityBubble({
                     </span>
                   )}
                 </div>
+
+                {/* Reactions Row */}
+                {onReact && (
+                  <div className="flex items-center justify-end pt-2 mt-2 border-t border-border/30">
+                    <ReactionBubbles
+                      counts={reactions || { thumbs_up: 0, thumbs_down: 0, user_reaction: null }}
+                      onReact={onReact}
+                      disabled={!canReact}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>

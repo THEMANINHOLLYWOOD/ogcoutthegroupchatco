@@ -2,15 +2,22 @@ import { motion } from "framer-motion";
 import { format, parseISO } from "date-fns";
 import { DayPlan } from "@/lib/tripTypes";
 import { ActivityBubble } from "./ActivityBubble";
+import { ReactionsMap, getReactionKey } from "@/lib/reactionService";
 
 interface DayCardProps {
   day: DayPlan;
   isActive: boolean;
+  reactions?: ReactionsMap;
+  onReact?: (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => void;
+  canReact?: boolean;
 }
 
 export function DayCard({ 
   day, 
-  isActive, 
+  isActive,
+  reactions,
+  onReact,
+  canReact,
 }: DayCardProps) {
   const date = parseISO(day.date);
 
@@ -47,6 +54,10 @@ export function DayCard({
             key={`${day.day_number}-${index}-${activity.title}`}
             activity={activity}
             index={index}
+            dayNumber={day.day_number}
+            reactions={reactions?.get(getReactionKey(day.day_number, index))}
+            onReact={onReact ? (reaction) => onReact(day.day_number, index, reaction) : undefined}
+            canReact={canReact}
           />
         ))}
       </div>
