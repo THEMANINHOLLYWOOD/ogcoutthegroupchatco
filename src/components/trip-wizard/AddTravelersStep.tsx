@@ -7,11 +7,10 @@ import { UserSearchPicker } from "./UserSearchPicker";
 import { ManualTravelerForm } from "./ManualTravelerForm";
 import { Airport } from "@/lib/airportSearch";
 import { Traveler } from "@/lib/tripTypes";
-import { TravelerInfo } from "@/lib/idExtraction";
 import { PlatformUser } from "@/lib/userService";
 
 interface AddTravelersStepProps {
-  organizer: TravelerInfo;
+  organizerName: string;
   defaultOrigin: Airport;
   destination: Airport;
   onContinue: (travelers: Traveler[]) => void;
@@ -19,7 +18,7 @@ interface AddTravelersStepProps {
 }
 
 export function AddTravelersStep({
-  organizer,
+  organizerName,
   defaultOrigin,
   destination,
   onContinue,
@@ -28,7 +27,7 @@ export function AddTravelersStep({
   const [travelers, setTravelers] = useState<Traveler[]>([
     {
       id: "organizer",
-      name: `${organizer.first_name || ""} ${organizer.last_name || ""}`.trim() || "You",
+      name: organizerName || "You",
       origin: defaultOrigin,
       isOrganizer: true,
     },

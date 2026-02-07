@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
 
 interface TripDetailsStepProps {
-  organizerName: string;
+  organizerName?: string;
   onContinue: (data: { destination: Airport; origin: Airport; departureDate: Date; returnDate: Date }) => void;
 }
 
@@ -49,6 +49,11 @@ export function TripDetailsStep({ organizerName, onContinue }: TripDetailsStepPr
   const today = startOfToday();
   const tomorrow = addDays(today, 1);
 
+  // Build headline based on whether we have a name
+  const headline = organizerName 
+    ? `Where to next, ${organizerName.split(" ")[0]}?`
+    : "Where to next?";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -58,10 +63,10 @@ export function TripDetailsStep({ organizerName, onContinue }: TripDetailsStepPr
       {/* Hero */}
       <div className="text-center mb-8">
         <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-3">
-          Where are you headed, {organizerName.split(" ")[0]}?
+          {headline}
         </h1>
         <p className="text-muted-foreground text-lg">
-          Tell us about your trip
+          Plan your trip in seconds
         </p>
       </div>
 
