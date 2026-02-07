@@ -1,231 +1,196 @@
 
-# Trip Creator Image, Itinerary Cleanup, and Trip Details Enhancement
+
+# Add Reactions to Public Itinerary and Reorganize Cost Layout
 
 ## Overview
-This plan addresses four improvements:
-1. **Include trip creator in AI group image** - Pass the organizer's profile picture to the image generator
-2. **Remove LIVE indicator from itinerary** - Clean up the random "LIVE" labels
-3. **Move edit pencil to trip details card** - Relocate from countdown timer to destination card
-4. **Add accommodation address and flight times** - Display more trip details in the destination card
+This plan adds thumbs up/down reactions to the public trip itinerary (shared link view) so all travelers can vote on activities, and moves the cost breakdown section below the itinerary so users see what they're doing first, then the cost.
 
 ---
 
-## Part 1: Include Trip Creator in AI Group Image
+## Current Architecture
 
-### Problem
-Currently, the organizer traveler is created without `avatar_url` or `user_id`:
+```text
+TripDashboard (organizer)          TripView (public shared link)
+├── DashboardItineraryView          ├── ItineraryView
+│   └── DashboardActivityCard       │   └── DayCard
+│       └── ReactionBubbles ✓       │       └── ActivityBubble ✗
+└── Cost Summary (simple)           └── CostSummary (detailed)
+```
+
+**Problem**: The public `TripView` page doesn't have reactions, only the organizer dashboard does.
+
+---
+
+## Part 1: Add Reactions to ActivityBubble
+
+### Changes to ActivityBubble.tsx
+
+Add props to support reactions:
+
 ```typescript
-// AddTravelersStep.tsx line 29-36
-{
-  id: "organizer",
-  name: organizerName || "You",
-  origin: defaultOrigin,
-  isOrganizer: true,
-  // Missing: user_id, avatar_url
+interface ActivityBubbleProps {
+  activity: Activity;
+  index: number;
+  dayNumber: number;               // NEW
+  reactions?: ReactionCounts;       // NEW
+  onReact?: (reaction: 'thumbs_up' | 'thumbs_down') => void;  // NEW
+  canReact?: boolean;               // NEW
 }
 ```
 
-The AI image generation only includes travelers with `avatar_url`, so the trip creator is excluded.
-
-### Solution
-
-**AddTravelersStep.tsx**: Accept `user` and `profile` props to populate the organizer traveler correctly:
+Add reaction UI at the bottom of each activity bubble (after the tip):
 
 ```typescript
-interface AddTravelersStepProps {
-  organizerName: string;
-  organizerId?: string;        // NEW: user.id
-  organizerAvatarUrl?: string; // NEW: profile.avatar_url
-  defaultOrigin: Airport;
-  destination: Airport;
-  onContinue: (travelers: Traveler[], accommodationType: AccommodationType) => void;
-  onBack: () => void;
-}
-
-// Initialize organizer with full data
-const [travelers, setTravelers] = useState<Traveler[]>([
-  {
-    id: "organizer",
-    name: organizerName || "You",
-    origin: defaultOrigin,
-    isOrganizer: true,
-    user_id: organizerId,           // NEW
-    avatar_url: organizerAvatarUrl, // NEW
-  },
-]);
+{/* Reactions Row */}
+{onReact && (
+  <div className="flex items-center justify-end pt-2 mt-2 border-t border-border/30">
+    <ReactionBubbles
+      counts={reactions || { thumbs_up: 0, thumbs_down: 0, user_reaction: null }}
+      onReact={onReact}
+      disabled={!canReact}
+    />
+  </div>
+)}
 ```
 
-**CreateTrip.tsx**: Pass the user/profile data to AddTravelersStep:
+---
+
+## Part 2: Wire Reactions Through Components
+
+### DayCard.tsx Updates
+
+Pass reactions and callbacks through to ActivityBubble:
 
 ```typescript
-<AddTravelersStep
-  organizerName={organizerName}
-  organizerId={user?.id}                    // NEW
-  organizerAvatarUrl={profile?.avatar_url || undefined}  // NEW
-  defaultOrigin={origin}
-  destination={destination}
-  onContinue={handleTravelersContinue}
-  onBack={() => setStep("trip-details")}
+interface DayCardProps {
+  day: DayPlan;
+  isActive: boolean;
+  tripId?: string;                  // NEW
+  reactions?: ReactionsMap;          // NEW
+  onReact?: (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => void;  // NEW
+  canReact?: boolean;                // NEW
+}
+
+// In render:
+<ActivityBubble
+  activity={activity}
+  index={index}
+  dayNumber={day.day_number}
+  reactions={reactions?.get(getReactionKey(day.day_number, index))}
+  onReact={(reaction) => onReact?.(day.day_number, index, reaction)}
+  canReact={canReact}
 />
 ```
 
-This ensures:
-- If the trip creator has a profile picture, they'll be included in the AI group image
-- Their `user_id` is tracked for linking purposes
+### ItineraryView.tsx Updates
+
+Accept and pass reactions props:
+
+```typescript
+interface ItineraryViewProps {
+  itinerary: Itinerary;
+  tripId?: string;
+  reactions?: ReactionsMap;          // NEW
+  onReact?: (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => void;  // NEW
+  canReact?: boolean;                // NEW
+  // ... existing props
+}
+```
 
 ---
 
-## Part 2: Remove LIVE Indicator from Itinerary
+## Part 3: Integrate Reactions in TripView
 
-### Current State
-`ActivityBubble.tsx` displays a pulsing "LIVE" indicator for activities with `is_live_event: true`:
+### TripView.tsx Updates
+
+1. Import reaction functions and hooks
+2. Add reaction state management (similar to TripDashboard)
+3. Subscribe to realtime reaction updates
+4. Pass reactions to ItineraryView
 
 ```typescript
-// Lines 86-96
+// New imports
+import { fetchReactions, subscribeToReactions, addReaction, removeReaction, ReactionsMap, getReactionKey } from "@/lib/reactionService";
+import { useAuth } from "@/hooks/useAuth";
+
+// New state
+const { user } = useAuth();
+const [reactions, setReactions] = useState<ReactionsMap>(new Map());
+
+// Load and subscribe to reactions
+const loadReactions = useCallback(async () => {
+  if (!tripId) return;
+  const reactionsData = await fetchReactions(tripId, user?.id);
+  setReactions(reactionsData);
+}, [tripId, user?.id]);
+
+// Handle reaction toggle
+const handleReact = async (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => {
+  if (!tripId || !user) {
+    toast({ title: "Sign in required", description: "Please sign in to react", variant: "destructive" });
+    return;
+  }
+  
+  const key = getReactionKey(dayNumber, activityIndex);
+  const currentReaction = reactions.get(key)?.user_reaction;
+  
+  if (currentReaction === reaction) {
+    await removeReaction(tripId, dayNumber, activityIndex);
+  } else {
+    await addReaction(tripId, dayNumber, activityIndex, reaction);
+  }
+  
+  loadReactions();
+};
+
+// Pass to ItineraryView
+<ItineraryView 
+  itinerary={trip.itinerary}
+  tripId={trip.id}
+  reactions={reactions}
+  onReact={handleReact}
+  canReact={!!user}
+  ...
+/>
+```
+
+---
+
+## Part 4: Reorganize Layout - Itinerary First, Then Costs
+
+### Current TripView Layout:
+```text
+1. Hero Header
+2. Itinerary Section
+3. Cost Breakdown Section  ← Already in correct order!
+4. Share Section (sticky)
+```
+
+Actually the current layout already shows itinerary first, then costs. But I'll verify the CostSummary shows the itemized activities after the base costs.
+
+### CostSummary Already Shows:
+1. Base Trip Total (collapsed header)
+2. When expanded:
+   - Accommodation details
+   - Activities & Experiences (itemized by day)
+   - Per Person Breakdown
+
+**This is correct** - shows base cost first, then activity costs can be added.
+
+---
+
+## Part 5: Remove LIVE Badge from DashboardActivityCard
+
+I noticed `DashboardActivityCard.tsx` still shows the LIVE badge (line 88-92). Remove it for consistency:
+
+```typescript
+// Remove these lines (88-92):
 {activity.is_live_event && (
-  <motion.div animate={{ scale: [1, 1.2, 1] }} ...>
-    <div className="w-2 h-2 rounded-full bg-destructive" />
-    <span className="text-xs font-medium text-destructive">LIVE</span>
-  </motion.div>
+  <span className="text-[10px] sm:text-xs font-medium text-destructive px-2 py-0.5 sm:py-1 bg-destructive/10 rounded-full">
+    🎫 Live
+  </span>
 )}
 ```
-
-Also has a red left border on live events (line 71).
-
-### Solution
-Remove all `is_live_event` rendering from `ActivityBubble.tsx`:
-1. Remove the conditional LIVE indicator JSX (lines 86-96)
-2. Remove the `border-l-2 border-l-red-500` conditional class (line 71)
-
-The `is_live_event` field will remain in the types for potential future use, but won't render anything.
-
----
-
-## Part 3: Move Edit Pencil to Trip Details Card
-
-### Current State
-The edit button is in `CountdownTimer.tsx` positioned absolutely in the top-right corner.
-
-### Solution
-
-**CountdownTimer.tsx**: Remove the `onEdit` prop and pencil button entirely. Keep the component focused solely on time display.
-
-**TripReadyStep.tsx**: Add the edit button to the destination card instead:
-
-```typescript
-// Destination Card (lines 252-291)
-<motion.div className="relative bg-gradient-to-br ...">
-  {/* NEW: Edit button in top-right of destination card */}
-  <Button
-    variant="ghost"
-    size="icon"
-    onClick={() => setIsEditModalOpen(true)}
-    className="absolute top-3 right-3 h-8 w-8 ..."
-  >
-    <Pencil className="h-4 w-4" />
-  </Button>
-  
-  {/* Existing content... */}
-</motion.div>
-```
-
----
-
-## Part 4: Add Accommodation Address and Flight Times
-
-### Data Available
-From `TripResult.flights`:
-```typescript
-interface FlightOption {
-  traveler_name: string;
-  departure_time: string;  // e.g., "9:00 AM"
-  arrival_time: string;    // e.g., "2:30 PM"
-  // ...
-}
-```
-
-From `TripResult.accommodation`:
-```typescript
-interface AccommodationOption {
-  name: string;           // e.g., "The Grand Hotel"
-  // Note: No address field currently exists
-}
-```
-
-### Solution
-
-**Extend AccommodationOption type** (optional enhancement):
-```typescript
-interface AccommodationOption {
-  name: string;
-  address?: string;  // NEW: Optional address field
-  // ...
-}
-```
-
-**Update TripReadyStep destination card** to show:
-
-```typescript
-// Updated trip details card layout
-<div className="grid grid-cols-2 gap-4 mt-4">
-  {/* Row 1: Dates & Stay */}
-  <div>
-    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-      <Calendar className="w-3 h-3" />
-      Dates
-    </div>
-    <div className="text-sm font-medium">
-      {format(departureDate, "MMM d")} – {format(returnDate, "MMM d")}
-    </div>
-  </div>
-  <div>
-    <div className="text-xs text-muted-foreground mb-1">Stay</div>
-    <div className="text-sm font-medium">{nights} nights</div>
-  </div>
-  
-  {/* Row 2: Group & Accommodation */}
-  <div>
-    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-      <Users className="w-3 h-3" />
-      Group
-    </div>
-    <div className="text-sm font-medium">{travelers.length} people</div>
-  </div>
-  <div>
-    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-      <Building2 className="w-3 h-3" />
-      {accommodationType === 'airbnb' ? 'Airbnb' : 'Hotel'}
-    </div>
-    <div className="text-sm font-medium truncate">
-      {tripResult.accommodation?.name || 'TBD'}
-    </div>
-  </div>
-</div>
-
-{/* Flight Times Section */}
-{tripResult.flights.length > 0 && (
-  <div className="mt-4 pt-4 border-t border-border/50">
-    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-      <Plane className="w-3 h-3" />
-      Flights
-    </div>
-    <div className="flex justify-between text-sm">
-      <div>
-        <span className="text-muted-foreground">Depart: </span>
-        <span className="font-medium">{tripResult.flights[0].departure_time}</span>
-      </div>
-      <div>
-        <span className="text-muted-foreground">Arrive: </span>
-        <span className="font-medium">{tripResult.flights[0].arrival_time}</span>
-      </div>
-    </div>
-  </div>
-)}
-```
-
-This displays:
-- Accommodation name with icon indicating Airbnb or Hotel
-- First traveler's flight departure and arrival times
 
 ---
 
@@ -233,52 +198,52 @@ This displays:
 
 | File | Changes |
 |------|---------|
-| `src/components/trip-wizard/AddTravelersStep.tsx` | Accept `organizerId` and `organizerAvatarUrl` props, use in organizer traveler |
-| `src/pages/CreateTrip.tsx` | Pass `user.id` and `profile.avatar_url` to AddTravelersStep |
-| `src/components/trip/ActivityBubble.tsx` | Remove LIVE indicator and red border |
-| `src/components/trip/CountdownTimer.tsx` | Remove `onEdit` prop and pencil button |
-| `src/components/trip-wizard/TripReadyStep.tsx` | Add edit button to destination card, add accommodation/flight info |
+| `src/components/trip/ActivityBubble.tsx` | Add reactions props and ReactionBubbles component |
+| `src/components/trip/DayCard.tsx` | Pass tripId, reactions, onReact, canReact to ActivityBubble |
+| `src/components/trip/ItineraryView.tsx` | Accept and pass reactions props |
+| `src/pages/TripView.tsx` | Add reaction state, load/subscribe to reactions, pass to ItineraryView |
+| `src/components/trip/DashboardActivityCard.tsx` | Remove LIVE badge |
 
 ---
 
-## Updated UI Layout
+## Data Flow
 
+### Public Trip View Reactions Flow
 ```text
-┌─────────────────────────────────────────────┐
-│  ⏱ 23:45:32                                │
-│  Time remaining to lock in                  │
-│  Collect payments before time runs out      │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│  📍 Paris                         [✏️ Edit] │
-│  France                                     │
-│                                             │
-│  📅 Dates          Stay                     │
-│  Feb 15 – Feb 22   7 nights                 │
-│                                             │
-│  👥 Group          🏨 Hotel                  │
-│  3 people          The Grand Paris          │
-│                                             │
-│  ─────────────────────────────────────────  │
-│  ✈️ Flights                                  │
-│  Depart: 9:00 AM       Arrive: 2:30 PM      │
-└─────────────────────────────────────────────┘
+1. User opens shared trip link (/trip/{id})
+2. TripView loads trip data + reactions
+3. Subscribes to realtime reaction updates
+4. User taps thumbs up/down on activity
+   └─ If not signed in → Show "sign in required" toast
+   └─ If signed in → Toggle reaction in database
+5. Realtime subscription triggers → Reload reactions
+6. All other viewers see updated counts instantly
 ```
 
+### Realtime Updates
+Both the organizer dashboard and public trip view subscribe to the same `activity_reactions` table. When anyone reacts:
+1. Database updates
+2. Realtime event fires
+3. Both views reload reactions
+4. UI updates for all viewers
+
 ---
 
-## Data Flow Update
+## Updated UI Preview
 
-### Trip Creator in Image
+### Activity Bubble (Public View)
 ```text
-1. CreateTrip loads with useAuth → has user.id, profile.avatar_url
-2. Passes to AddTravelersStep as organizerId, organizerAvatarUrl
-3. Organizer traveler now has avatar_url populated
-4. When trip saved → travelers array includes organizer with avatar
-5. TripGroupImage filters for travelers with avatars → includes organizer
-6. Edge function receives organizer's avatar in reference photos
-7. AI generates image including trip creator
+┌──────────────────────────────────────────────────┐
+│  9:00 AM                                          │
+│  ┌──────────────────────────────────────────────┐ │
+│  │ 🏛️  Eiffel Tower                              │ │
+│  │     Marvel at Paris's iconic iron lady        │ │
+│  │                                               │ │
+│  │     ~$30/person  💡 Book skip-the-line!       │ │
+│  │     ─────────────────────────────────────     │ │
+│  │                         [👍 3] [👎 0]         │ │
+│  └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
 ```
 
 ---
@@ -287,7 +252,9 @@ This displays:
 
 | Change | Impact |
 |--------|--------|
-| Pass organizer user data to traveler list | Trip creator appears in AI group image |
-| Remove LIVE indicator | Cleaner itinerary without random labels |
-| Move edit button to destination card | Better UX - edit where the data is |
-| Add accommodation name and flight times | More useful trip overview at a glance |
+| Add reactions to ActivityBubble | Public trip viewers can vote |
+| Wire reactions through components | Clean prop drilling |
+| Integrate in TripView | Full reaction support on shared links |
+| Realtime subscriptions | Everyone sees live updates |
+| Remove LIVE badge from dashboard | Consistent with ActivityBubble cleanup |
+
