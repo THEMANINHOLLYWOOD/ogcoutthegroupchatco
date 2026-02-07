@@ -85,11 +85,6 @@ export function DashboardActivityCard({
               ${activity.estimated_cost}
             </span>
           )}
-          {activity.is_live_event && (
-            <span className="text-[10px] sm:text-xs font-medium text-destructive px-2 py-0.5 sm:py-1 bg-destructive/10 rounded-full">
-              🎫 Live
-            </span>
-          )}
         </div>
         
         <div className="flex items-center gap-1.5 sm:gap-2">

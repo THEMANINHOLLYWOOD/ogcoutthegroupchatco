@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Itinerary } from "@/lib/tripTypes";
 import { DayCard } from "./DayCard";
 import { cn } from "@/lib/utils";
+import { ReactionsMap } from "@/lib/reactionService";
 
 interface ItineraryViewProps {
   itinerary: Itinerary;
@@ -10,10 +11,16 @@ interface ItineraryViewProps {
   destinationCity?: string;
   destinationCountry?: string;
   onItineraryUpdate?: (updatedItinerary: Itinerary) => void;
+  reactions?: ReactionsMap;
+  onReact?: (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => void;
+  canReact?: boolean;
 }
 
 export function ItineraryView({ 
-  itinerary, 
+  itinerary,
+  reactions,
+  onReact,
+  canReact,
 }: ItineraryViewProps) {
   const [activeDay, setActiveDay] = useState(1);
 
@@ -72,6 +79,9 @@ export function ItineraryView({
             key={day.day_number}
             day={day}
             isActive={activeDay === day.day_number}
+            reactions={reactions}
+            onReact={onReact}
+            canReact={canReact}
           />
         ))}
       </AnimatePresence>

@@ -8,15 +8,20 @@ import { ItinerarySkeleton } from "@/components/trip/ItinerarySkeleton";
 import { ShareButton } from "@/components/trip/ShareButton";
 import { CostSummary } from "@/components/trip/CostSummary";
 import { fetchTrip, generateItinerary, subscribeToTripUpdates } from "@/lib/tripService";
+import { fetchReactions, subscribeToReactions, addReaction, removeReaction, ReactionsMap, getReactionKey } from "@/lib/reactionService";
 import { SavedTrip } from "@/lib/tripTypes";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
 
 export default function TripView() {
   const { tripId } = useParams<{ tripId: string }>();
+  const { user } = useAuth();
   const [trip, setTrip] = useState<SavedTrip | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [reactions, setReactions] = useState<ReactionsMap>(new Map());
 
   const toggleActivity = useCallback((dayNumber: number, activityIndex: number) => {
     const key = `${dayNumber}-${activityIndex}`;
@@ -70,6 +75,36 @@ export default function TripView() {
     });
   }, [trip?.itinerary]);
 
+  // Load reactions
+  const loadReactions = useCallback(async () => {
+    if (!tripId) return;
+    const reactionsData = await fetchReactions(tripId, user?.id);
+    setReactions(reactionsData);
+  }, [tripId, user?.id]);
+
+  // Handle reaction toggle
+  const handleReact = useCallback(async (dayNumber: number, activityIndex: number, reaction: 'thumbs_up' | 'thumbs_down') => {
+    if (!tripId || !user) {
+      toast({ 
+        title: "Sign in required", 
+        description: "Please sign in to react to activities", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    const key = getReactionKey(dayNumber, activityIndex);
+    const currentReaction = reactions.get(key)?.user_reaction;
+    
+    if (currentReaction === reaction) {
+      await removeReaction(tripId, dayNumber, activityIndex);
+    } else {
+      await addReaction(tripId, dayNumber, activityIndex, reaction);
+    }
+    
+    loadReactions();
+  }, [tripId, user, reactions, loadReactions]);
+
   const loadTrip = useCallback(async () => {
     if (!tripId) return;
 
@@ -99,6 +134,13 @@ export default function TripView() {
     loadTrip();
   }, [loadTrip]);
 
+  // Load reactions when trip or user changes
+  useEffect(() => {
+    if (tripId) {
+      loadReactions();
+    }
+  }, [tripId, user?.id, loadReactions]);
+
   // Subscribe to realtime updates for itinerary
   useEffect(() => {
     if (!tripId) return;
@@ -111,6 +153,17 @@ export default function TripView() {
       unsubscribe.then((unsub) => unsub());
     };
   }, [tripId]);
+
+  // Subscribe to realtime reaction updates
+  useEffect(() => {
+    if (!tripId) return;
+
+    const unsubscribe = subscribeToReactions(tripId, () => {
+      loadReactions();
+    });
+
+    return unsubscribe;
+  }, [tripId, loadReactions]);
 
   if (loading) {
     return (
@@ -189,6 +242,9 @@ export default function TripView() {
               onItineraryUpdate={(updatedItinerary) => {
                 setTrip(prev => prev ? { ...prev, itinerary: updatedItinerary } : null);
               }}
+              reactions={reactions}
+              onReact={handleReact}
+              canReact={!!user}
             />
           ) : trip.itinerary_status === "failed" ? (
             <div className="p-6 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
