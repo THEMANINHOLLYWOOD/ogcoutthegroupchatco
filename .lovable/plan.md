@@ -1,156 +1,176 @@
 
+# Streamlined Trip Creation Flow
 
-# Plan: Add Different Departure Location for All Travelers
+## Overview
+Consolidate the post-search experience into a single, clean page. After users click "Search Flights," they'll see a unified "Your trip is ready" view that includes the cost breakdown, the itinerary (loading in background), and share functionality—all without navigating through multiple pages.
 
-## Current State
+## Current Flow (5 steps)
+```text
+Trip Details → Travelers → Searching → Summary → Share → TripView (itinerary)
+```
 
-| Add Method | Different Airport Option | Status |
-|------------|--------------------------|--------|
-| Manual entry | Toggle + airport picker | Works |
-| Platform user search | None - uses organizer's airport | Missing |
-
-The manual traveler form already has the toggle "Flying from SFO?" with an airport autocomplete. Platform users need the same capability.
-
----
-
-## Solution Approach
-
-Add a confirmation step after selecting a platform user that allows specifying their departure airport before adding them to the trip.
+## Proposed Flow (3 steps)
+```text
+Trip Details → Travelers → Searching → Consolidated Ready Page (with itinerary loading)
+```
 
 ---
 
-## Implementation
+## User Experience
 
-### Step 1: Create PlatformUserConfirm Component
+### What Changes
+1. After flight search completes, save the trip immediately (in background)
+2. Show the "Your trip is ready" success header
+3. Display cost breakdown inline
+4. Show itinerary skeleton that streams in as it generates via Realtime
+5. Include share button directly on this page
+6. No separate Summary → TripView navigation
 
-**New file: `src/components/trip-wizard/PlatformUserConfirm.tsx`**
-
-A modal/sheet that appears after selecting a platform user:
-
+### Visual Layout (Consolidated Page)
 ```text
 ┌─────────────────────────────────────┐
-│  Add [User Name]                    │
+│ ← Back                    Share ↗   │
 ├─────────────────────────────────────┤
 │                                     │
-│     [Avatar]                        │
-│     Sarah Johnson                   │
-│     San Francisco, CA               │
+│         ✓ Your trip is ready        │
 │                                     │
-│  ─────────────────────────────────  │
+│     ┌─────────────────────────┐     │
+│     │  📍 Miami, Florida      │     │
+│     │  Jun 15 – Jun 20        │     │
+│     │  3 travelers            │     │
+│     └─────────────────────────┘     │
 │                                     │
-│  Flying from SFO?               [✓] │
+│  ── Cost Breakdown ──               │
+│  Trip Total: $2,400                 │
+│  ~$800/person                       │
+│  [Expandable per-person details]    │
 │                                     │
-│  (if toggled off)                   │
-│  ┌───────────────────────────────┐  │
-│  │  Search departure airport...  │  │
-│  └───────────────────────────────┘  │
+│  ── Your Itinerary ──               │
+│  [Skeleton → Streamed content]      │
 │                                     │
-│  ┌───────────────────────────────┐  │
-│  │     Add to Trip               │  │
-│  └───────────────────────────────┘  │
+│  ┌─────────────────────────────┐    │
+│  │     Share Trip Link         │    │
+│  └─────────────────────────────┘    │
 │                                     │
 └─────────────────────────────────────┘
 ```
 
-Features:
-- Shows selected user's avatar and name
-- Same airport toggle (default: on)
-- Airport autocomplete when toggle is off
-- "Add to Trip" button
-
-### Step 2: Update UserSearchPicker
-
-**File: `src/components/trip-wizard/UserSearchPicker.tsx`**
-
-- Instead of calling `onSelectUser(user)` directly, pass both the user and the confirm state
-- Or keep the picker simple and handle confirmation in the parent
-
-### Step 3: Update AddTravelersStep
-
-**File: `src/components/trip-wizard/AddTravelersStep.tsx`**
-
-- Add state for pending platform user: `pendingUser: PlatformUser | null`
-- When `UserSearchPicker` selects a user, set `pendingUser` instead of adding immediately
-- Show `PlatformUserConfirm` modal when `pendingUser` is set
-- On confirm, add the traveler with the specified origin
-
 ---
 
-## Updated Flow
+## Technical Implementation
 
-```text
-User taps "Add Traveler"
-    ↓
-UserSearchPicker opens
-    ↓
-User searches and selects "Sarah"
-    ↓
-PlatformUserConfirm sheet appears
-    ↓
-User sees: "Flying from SFO?" [toggle]
-    ↓
-Option A: Keep toggle on → Add with SFO
-Option B: Toggle off → Select different airport → Add
-    ↓
-Traveler added with correct origin
+### Step 1: Modify the Flow Logic
+**File:** `src/pages/CreateTrip.tsx`
+
+- After `searchTrip()` succeeds, immediately call `saveTrip()` in the same handler
+- Store the returned `tripId` in state
+- Transition to a new `"ready"` step (or rename `"summary"` to consolidate)
+- Start `generateItinerary()` immediately after save
+- Subscribe to Realtime updates for itinerary streaming
+
+### Step 2: Create New Consolidated Component
+**File:** `src/components/trip-wizard/TripReadyStep.tsx`
+
+This single component replaces `TripSummaryStep` and includes:
+- Success header with check icon
+- Destination card (city, dates, traveler count)
+- Collapsible cost breakdown (reuse existing `CostSummary` logic)
+- Itinerary section with skeleton → real content transition
+- Share button (copy link functionality)
+
+Props needed:
+```typescript
+interface TripReadyStepProps {
+  tripId: string;
+  tripResult: TripResult;
+  destination: Airport;
+  departureDate: Date;
+  returnDate: Date;
+  travelers: Traveler[];
+  itinerary: Itinerary | null;
+  itineraryStatus: 'pending' | 'generating' | 'complete' | 'failed';
+  shareCode: string;
+  onEdit: () => void;
+}
 ```
 
+### Step 3: Integrate Realtime Subscription
+**File:** `src/pages/CreateTrip.tsx`
+
+- After saving trip, subscribe to `subscribeToTripUpdates(tripId, ...)`
+- Update local itinerary state as it streams in
+- Pass itinerary + status to `TripReadyStep`
+
+### Step 4: Clean Up Unused Components
+- Remove `TripSummaryStep.tsx` (replaced by `TripReadyStep`)
+- Keep `SearchingStep` as the loading state before results
+
+### Step 5: Update Share Functionality
+- The share button on the ready page copies the trip link directly
+- Format: `outthegroupchatco.com/trip/{shareCode}`
+- Toast confirmation when copied
+
 ---
 
-## Files to Create/Modify
+## Files to Modify
 
-| File | Action |
-|------|--------|
-| `src/components/trip-wizard/PlatformUserConfirm.tsx` | Create - confirmation sheet with airport option |
-| `src/components/trip-wizard/AddTravelersStep.tsx` | Modify - add pending user state and confirmation flow |
+| File | Changes |
+|------|---------|
+| `src/pages/CreateTrip.tsx` | Add trip save logic, realtime subscription, new step flow |
+| `src/components/trip-wizard/TripReadyStep.tsx` | **New file** - consolidated ready view |
+| `src/components/trip-wizard/TripSummaryStep.tsx` | Remove (no longer needed) |
+
+## Files to Reuse (No Changes)
+
+| File | Purpose |
+|------|---------|
+| `src/components/trip/ItineraryView.tsx` | Display completed itinerary |
+| `src/components/trip/ItinerarySkeleton.tsx` | Loading state for itinerary |
+| `src/components/trip-wizard/CostBreakdown.tsx` | Per-traveler cost display |
+| `src/lib/tripService.ts` | `saveTrip`, `generateItinerary`, `subscribeToTripUpdates` |
 
 ---
 
 ## Technical Details
 
-### PlatformUserConfirm Props
+### Flow After Search Completes
 
 ```typescript
-interface PlatformUserConfirmProps {
-  user: PlatformUser;
-  defaultOrigin: Airport;
-  open: boolean;
-  onConfirm: (user: PlatformUser, origin: Airport) => void;
-  onCancel: () => void;
+// In handleTravelersContinue, after searchTrip succeeds:
+const result = await searchTrip({...});
+
+if (result.success && result.data) {
+  setTripResult(result.data);
+  
+  // 1. Save trip immediately
+  const saveResult = await saveTrip({...});
+  
+  if (saveResult.success && saveResult.tripId) {
+    setTripId(saveResult.tripId);
+    
+    // 2. Trigger itinerary generation
+    generateItinerary(saveResult.tripId, ...);
+    
+    // 3. Subscribe to realtime updates
+    subscribeToTripUpdates(saveResult.tripId, (updatedTrip) => {
+      setItinerary(updatedTrip.itinerary);
+      setItineraryStatus(updatedTrip.itinerary_status);
+    });
+    
+    // 4. Move to ready step
+    setStep("ready");
+  }
 }
 ```
 
-### AddTravelersStep Changes
+### Simplified Step Type
 
 ```typescript
-// Add state
-const [pendingUser, setPendingUser] = useState<PlatformUser | null>(null);
-
-// Update addPlatformUser to receive origin
-const addPlatformUser = useCallback((user: PlatformUser, origin: Airport) => {
-  const newTraveler: Traveler = {
-    id: crypto.randomUUID(),
-    name: user.full_name || "Unknown User",
-    origin, // Use the specified origin instead of defaultOrigin
-    isOrganizer: false,
-    user_id: user.id,
-    avatar_url: user.avatar_url || undefined,
-  };
-  setTravelers((prev) => [...prev, newTraveler]);
-  setPendingUser(null);
-}, []);
-
-// UserSearchPicker now sets pendingUser instead of adding directly
-onSelectUser={(user) => setPendingUser(user)}
+type Step = "trip-details" | "travelers" | "searching" | "ready";
 ```
 
----
+### Share Link Format
 
-## Design Consistency
-
-The confirmation sheet will match the existing design language:
-- Same sheet component from UserSearchPicker
-- Same airport autocomplete from ManualTravelerForm
-- Same toggle styling
-- Same button styling
-
+```typescript
+const shareUrl = `https://outthegroupchatco.com/trip/${shareCode}`;
+```
