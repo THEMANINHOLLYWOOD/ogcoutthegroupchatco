@@ -86,6 +86,7 @@ export async function fetchTrip(tripId: string): Promise<{ success: boolean; tri
       share_image_url: rawData.share_image_url as string | null,
       link_created_at: rawData.link_created_at as string | null,
       link_expires_at: rawData.link_expires_at as string | null,
+      paid_travelers: (rawData.paid_travelers as string[]) || [],
       created_at: rawData.created_at as string,
       updated_at: rawData.updated_at as string,
     };
@@ -192,6 +193,7 @@ export async function subscribeToTripUpdates(
           share_image_url: data.share_image_url as string | null,
           link_created_at: data.link_created_at as string | null,
           link_expires_at: data.link_expires_at as string | null,
+          paid_travelers: ((data.paid_travelers as unknown) as string[]) || [],
           created_at: data.created_at as string,
           updated_at: data.updated_at as string,
         };
@@ -311,6 +313,7 @@ export async function fetchUserTrips(): Promise<{ success: boolean; trips?: Save
       share_image_url: rawData.share_image_url as string | null,
       link_created_at: rawData.link_created_at as string | null,
       link_expires_at: rawData.link_expires_at as string | null,
+      paid_travelers: (rawData.paid_travelers as string[]) || [],
       created_at: rawData.created_at as string,
       updated_at: rawData.updated_at as string,
     }));

@@ -82,6 +82,7 @@ export interface SavedTrip {
   share_image_url: string | null;
   link_created_at: string | null;
   link_expires_at: string | null;
+  paid_travelers: string[];
   created_at: string;
   updated_at: string;
 }
