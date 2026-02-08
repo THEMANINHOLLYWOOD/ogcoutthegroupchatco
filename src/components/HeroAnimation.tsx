@@ -4,6 +4,31 @@ import { TypingIndicator } from "./TypingIndicator";
 import { TripPreviewCard } from "./TripPreviewCard";
 import { useState, useEffect, useRef } from "react";
 
+const useCurrentTimeEST = () => {
+  const [time, setTime] = useState(() => {
+    return new Date().toLocaleTimeString('en-US', {
+      timeZone: 'America/New_York',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTime(new Date().toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return time;
+};
+
 interface ChatMessage {
   name: string;
   message: string;
@@ -25,6 +50,7 @@ const initialMessages: ChatMessage[] = [
 const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
 export const HeroAnimation = () => {
+  const currentTime = useCurrentTimeEST();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [showTyping, setShowTyping] = useState(false);
   const typingName = "Sarah";
@@ -85,8 +111,8 @@ export const HeroAnimation = () => {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-foreground rounded-b-2xl z-10" />
 
         {/* Status bar */}
-        <div className="h-12 bg-card flex items-end justify-center px-8 pb-1">
-          <span className="text-xs font-medium">9:41</span>
+        <div className="h-12 bg-card flex items-end justify-end px-6 pb-1">
+          <span className="text-xs font-medium">{currentTime}</span>
         </div>
 
         {/* Chat header */}
