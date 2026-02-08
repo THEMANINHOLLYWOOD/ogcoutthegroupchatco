@@ -112,12 +112,12 @@ export function TripReadyStep({
   }, [tripId, user, reactions, loadReactions]);
 
   const handleShare = async () => {
-    const shareUrl = `https://outthegroupchatco.com/trip/${shareCode}`;
+    const shareUrl = `${window.location.origin}/trip/${tripId}`;
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Trip to ${destination.city}`,
-          text: `Join our trip to ${destination.city}!`,
+          text: `Join our trip to ${destination.city}! Use code: ${shareCode}`,
           url: shareUrl,
         });
       } catch {
