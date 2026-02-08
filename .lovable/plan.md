@@ -1,110 +1,42 @@
 
-# Fix: Ensure Itinerary is Static and Never Regenerates
+# Upgrade extract-id to Gemini 3
 
-## Problem
-When shared trip links are opened, the itinerary sometimes appears to "reload" or "rebuild" instead of showing the already-generated static content.
+## Current State
+5 of 6 edge functions already use Gemini 3 models. Only `extract-id` needs updating.
 
-## Root Cause
-Two issues identified:
+## Change
 
-1. **Race Condition**: If multiple users open a shared link simultaneously while `itinerary_status = "pending"`, each viewer triggers a separate `generateItinerary` call
-2. **Missing Guard in Edge Function**: The `generate-itinerary` function doesn't check if itinerary is already being generated or is complete before starting
+| File | From | To |
+|------|------|----|
+| `supabase/functions/extract-id/index.ts` | `google/gemini-2.5-flash` | `google/gemini-3-flash-preview` |
 
-## Solution
-
-### 1. Add Guard to Edge Function
-Check current status before generating. Skip if already `"generating"` or `"complete"`.
-
-```text
-Edge Function Logic:
-1. Fetch current trip status
-2. If status is "complete" → return existing itinerary
-3. If status is "generating" → return "in progress" message
-4. If status is "pending" → proceed with generation
-```
-
-### 2. Update TripView.tsx
-Only trigger generation for `"pending"` status (current behavior is correct, but add extra safety).
-
----
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/generate-itinerary/index.ts` | Add status check before generating |
-| `src/pages/TripView.tsx` | Improve logging, no logic change needed |
-
----
-
-## Edge Function Changes
+## Code Change
 
 ```typescript
-// Before generating, check current status
-const { data: currentTrip } = await supabase
-  .from("trips")
-  .select("itinerary_status, itinerary")
-  .eq("id", tripId)
-  .single();
+// Line 133 in extract-id/index.ts
+// Before:
+model: "google/gemini-2.5-flash",
 
-// Skip if already complete
-if (currentTrip?.itinerary_status === "complete" && currentTrip?.itinerary) {
-  console.log("Itinerary already complete, skipping generation");
-  return new Response(JSON.stringify({ 
-    success: true, 
-    itinerary: currentTrip.itinerary,
-    skipped: true 
-  }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-// Skip if already generating (another request is handling it)
-if (currentTrip?.itinerary_status === "generating") {
-  console.log("Itinerary generation already in progress");
-  return new Response(JSON.stringify({ 
-    success: true, 
-    inProgress: true 
-  }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+// After:
+model: "google/gemini-3-flash-preview",
 ```
 
----
+## Why Gemini 3 Flash (not Pro)?
 
-## Data Flow After Fix
-
-```text
-Trip Created → status = "pending", itinerary = null
-       ↓
-First viewer opens link
-       ↓
-Check status → "pending" → Trigger generation
-       ↓
-Status updates to "generating"
-       ↓
-Second viewer opens link (simultaneously)
-       ↓
-Check status → "generating" → Skip, wait for realtime update
-       ↓
-AI generates itinerary
-       ↓
-Status updates to "complete", itinerary saved
-       ↓
-Both viewers receive update via realtime subscription
-       ↓
-All future viewers see "complete" → Display stored itinerary
-```
-
----
+- **ID extraction is vision-based text extraction**—speed matters more than deep reasoning
+- Gemini 3 Flash Preview is optimized for fast, accurate multimodal tasks
+- Pro is overkill for OCR-style structured extraction
+- Keeps cost lower for frequent document scans
 
 ## Summary
 
-| Change | Purpose |
-|--------|---------|
-| Guard in edge function | Prevent duplicate generation |
-| Status check before AI call | Skip if already complete |
-| "generating" detection | Prevent race condition |
+| Function | Model |
+|----------|-------|
+| `extract-id` | `google/gemini-3-flash-preview` |
+| `search-trip` | `google/gemini-3-flash-preview` |
+| `group-chat` | `google/gemini-3-flash-preview` |
+| `generate-itinerary` | `google/gemini-3-flash-preview` |
+| `find-alternative-activity` | `google/gemini-3-flash-preview` |
+| `generate-share-image` | `google/gemini-3-pro-image-preview` |
 
-This ensures the itinerary is generated exactly once and all viewers see the same static content.
+One-line change, then deploy.
