@@ -1,18 +1,23 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle, MapPin, Calendar, Users, Building2, Home, Plane, CreditCard } from "lucide-react";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { ItineraryView } from "@/components/trip/ItineraryView";
 import { ItinerarySkeleton } from "@/components/trip/ItinerarySkeleton";
-import { ShareButton } from "@/components/trip/ShareButton";
 import { CostSummary } from "@/components/trip/CostSummary";
+import { CountdownTimer } from "@/components/trip/CountdownTimer";
+import { TripGroupImage } from "@/components/trip/TripGroupImage";
+import { TravelerPaymentStatus } from "@/components/trip/TravelerPaymentStatus";
+import { TravelerPaymentDrawer } from "@/components/trip/TravelerPaymentDrawer";
 import { fetchTrip, generateItinerary, subscribeToTripUpdates } from "@/lib/tripService";
 import { fetchReactions, subscribeToReactions, addReaction, removeReaction, ReactionsMap, getReactionKey } from "@/lib/reactionService";
-import { SavedTrip } from "@/lib/tripTypes";
+import { SavedTrip, TravelerCost, Traveler } from "@/lib/tripTypes";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function TripView() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -22,6 +27,26 @@ export default function TripView() {
   const [error, setError] = useState<string | null>(null);
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
   const [reactions, setReactions] = useState<ReactionsMap>(new Map());
+  const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
+  const [isPayDrawerOpen, setIsPayDrawerOpen] = useState(false);
+
+  // Calculate trip duration
+  const nights = trip ? Math.ceil(
+    (new Date(trip.return_date).getTime() - new Date(trip.departure_date).getTime()) / (1000 * 60 * 60 * 24)
+  ) : 0;
+
+  // Convert travelers to the format needed for TripGroupImage
+  const travelersForImage: Traveler[] = trip?.travelers?.map((t, index) => ({
+    id: `traveler-${index}`,
+    name: t.traveler_name,
+    origin: { iata: "", city: t.origin, country: "", name: "", lat: 0, lng: 0 },
+    isOrganizer: index === 0,
+    user_id: t.user_id,
+    avatar_url: t.avatar_url,
+  })) || [];
+
+  // Get traveler costs for payment components
+  const travelerCosts: TravelerCost[] = trip?.cost_breakdown || [];
 
   const toggleActivity = useCallback((dayNumber: number, activityIndex: number) => {
     const key = `${dayNumber}-${activityIndex}`;
@@ -105,12 +130,58 @@ export default function TripView() {
     loadReactions();
   }, [tripId, user, reactions, loadReactions]);
 
+  // Handle payment for a traveler
+  const handlePayForTraveler = useCallback(async (travelerName: string) => {
+    if (!tripId) return;
+    
+    // Update local state optimistically
+    const newPaidTravelers = [...paidTravelers, travelerName];
+    setPaidTravelers(new Set(newPaidTravelers));
+    
+    // Persist to database
+    const { error } = await supabase
+      .from("trips")
+      .update({ paid_travelers: newPaidTravelers } as never)
+      .eq("id", tripId);
+    
+    if (error) {
+      // Revert on error
+      setPaidTravelers(prev => {
+        const next = new Set(prev);
+        next.delete(travelerName);
+        return next;
+      });
+      toast({
+        title: "Payment failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    toast({
+      title: "Payment confirmed!",
+      description: `${travelerName}'s spot is secured`,
+    });
+  }, [tripId, paidTravelers]);
+
+  // Handle countdown expiration
+  const handleExpire = useCallback(() => {
+    toast({
+      title: "Time expired",
+      description: "The booking window has closed.",
+      variant: "destructive",
+    });
+  }, []);
+
   const loadTrip = useCallback(async () => {
     if (!tripId) return;
 
     const result = await fetchTrip(tripId);
     if (result.success && result.trip) {
       setTrip(result.trip);
+      // Initialize paid travelers from database
+      setPaidTravelers(new Set(result.trip.paid_travelers || []));
 
       // Trigger itinerary generation if pending
       if (result.trip.itinerary_status === "pending") {
@@ -141,12 +212,13 @@ export default function TripView() {
     }
   }, [tripId, user?.id, loadReactions]);
 
-  // Subscribe to realtime updates for itinerary
+  // Subscribe to realtime updates for itinerary and paid_travelers
   useEffect(() => {
     if (!tripId) return;
 
     const unsubscribe = subscribeToTripUpdates(tripId, (updatedTrip) => {
       setTrip(updatedTrip);
+      setPaidTravelers(new Set(updatedTrip.paid_travelers || []));
     });
 
     return () => {
@@ -199,6 +271,10 @@ export default function TripView() {
     );
   }
 
+  // Determine accommodation type from the accommodation object
+  const accommodationType = trip.accommodation?.name?.toLowerCase().includes("airbnb") ? "airbnb" : "hotel";
+  const allPaid = travelerCosts.length > 0 && travelerCosts.every(t => paidTravelers.has(t.traveler_name));
+
   return (
     <div className="min-h-screen bg-background">
       {/* Back Button */}
@@ -226,12 +302,123 @@ export default function TripView() {
       />
 
       {/* Content */}
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
+      <main className="container mx-auto px-4 py-8 max-w-lg space-y-6">
+        
+        {/* Countdown Timer */}
+        {trip.link_expires_at && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+          >
+            <CountdownTimer 
+              expiresAt={trip.link_expires_at} 
+              onExpire={handleExpire}
+            />
+          </motion.div>
+        )}
+
+        {/* AI-Generated Group Image */}
+        <TripGroupImage
+          tripId={trip.id}
+          destinationCity={trip.destination_city}
+          destinationCountry={trip.destination_country}
+          travelers={travelersForImage}
+        />
+
+        {/* Destination Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-5 border border-primary/10"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+              <MapPin className="w-6 h-6 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold text-foreground">{trip.destination_city}</h2>
+              <p className="text-sm text-muted-foreground">{trip.destination_country}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                <Calendar className="w-3 h-3" />
+                Dates
+              </div>
+              <div className="text-sm font-medium text-foreground">
+                {format(new Date(trip.departure_date), "MMM d")} – {format(new Date(trip.return_date), "MMM d")}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Stay</div>
+              <div className="text-sm font-medium text-foreground">{nights} nights</div>
+            </div>
+            <div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                <Users className="w-3 h-3" />
+                Group
+              </div>
+              <div className="text-sm font-medium text-foreground">{trip.travelers.length} people</div>
+            </div>
+            <div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                {accommodationType === 'airbnb' ? <Home className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
+                {accommodationType === 'airbnb' ? 'Airbnb' : 'Hotel'}
+              </div>
+              <div className="text-sm font-medium text-foreground truncate">
+                {trip.accommodation?.name || 'TBD'}
+              </div>
+            </div>
+          </div>
+
+          {/* Flight Times */}
+          {trip.flights && trip.flights.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                <Plane className="w-3 h-3" />
+                Flights
+              </div>
+              <div className="flex justify-between text-sm">
+                <div>
+                  <span className="text-muted-foreground">Depart: </span>
+                  <span className="font-medium text-foreground">{trip.flights[0].departure_time}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Arrive: </span>
+                  <span className="font-medium text-foreground">{trip.flights[0].arrival_time}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Traveler Payment Status */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="bg-background border border-border rounded-2xl p-4"
+        >
+          <TravelerPaymentStatus
+            travelers={travelerCosts}
+            paidTravelers={paidTravelers}
+            onPay={handlePayForTraveler}
+            isOrganizer={false}
+          />
+        </motion.div>
+
         {/* Itinerary Section */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-6">
-            Your Itinerary
-          </h2>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-4"
+        >
+          <h2 className="text-lg font-semibold text-foreground">Your Itinerary</h2>
 
           {trip.itinerary_status === "complete" && trip.itinerary ? (
             <ItineraryView 
@@ -259,11 +446,15 @@ export default function TripView() {
           ) : (
             <ItinerarySkeleton />
           )}
-        </section>
+        </motion.div>
 
         {/* Cost Summary */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-4">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <h2 className="text-lg font-semibold text-foreground mb-4">
             Cost Breakdown
           </h2>
           <CostSummary
@@ -279,24 +470,54 @@ export default function TripView() {
             onAddDayActivities={addDayActivities}
             onRemoveDayActivities={removeDayActivities}
           />
-        </section>
+        </motion.div>
 
-        {/* Share Section */}
-        <section className="sticky bottom-4 z-40">
+        {/* Pay Button - Sticky at bottom */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="sticky bottom-4 z-40"
+        >
           <div className="bg-background/95 backdrop-blur-sm p-4 rounded-2xl border border-border shadow-lg">
-            <p className="text-sm text-muted-foreground text-center mb-3">
-              {trip.organizer_id ? "Share this trip with your travel group" : "Save and share this trip"}
-            </p>
-            <ShareButton 
-              tripId={trip.id} 
-              shareCode={trip.share_code} 
-              isClaimed={!!trip.organizer_id}
-              destinationCity={trip.destination_city}
-              destinationCountry={trip.destination_country}
-            />
+            {allPaid ? (
+              <div className="text-center">
+                <p className="text-primary font-medium mb-2">✨ All travelers have paid!</p>
+                <p className="text-sm text-muted-foreground">
+                  You're going to {trip.destination_city}!
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground text-center mb-3">
+                  Secure your spot on this trip
+                </p>
+                <Button
+                  onClick={() => setIsPayDrawerOpen(true)}
+                  className="w-full h-12 rounded-xl text-base font-medium"
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pay
+                </Button>
+              </>
+            )}
           </div>
-        </section>
+        </motion.div>
+
+        {/* Footer Note */}
+        <p className="text-xs text-muted-foreground text-center pb-4">
+          Prices are estimates and may vary. Final prices confirmed at booking.
+        </p>
       </main>
+
+      {/* Payment Drawer */}
+      <TravelerPaymentDrawer
+        travelers={travelerCosts}
+        paidTravelers={paidTravelers}
+        onPay={handlePayForTraveler}
+        open={isPayDrawerOpen}
+        onOpenChange={setIsPayDrawerOpen}
+      />
     </div>
   );
 }

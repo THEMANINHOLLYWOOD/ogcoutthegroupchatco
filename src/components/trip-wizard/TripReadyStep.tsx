@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { fetchReactions, subscribeToReactions, addReaction, removeReaction, ReactionsMap, getReactionKey } from "@/lib/reactionService";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TripReadyStepProps {
   tripId: string;
@@ -154,14 +155,36 @@ export function TripReadyStep({
   };
 
   const handlePayTraveler = useCallback(async (travelerName: string) => {
-    // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setPaidTravelers(prev => new Set([...prev, travelerName]));
+    // Update local state optimistically
+    const newPaidTravelers = [...paidTravelers, travelerName];
+    setPaidTravelers(new Set(newPaidTravelers));
+    
+    // Persist to database
+    const { error } = await supabase
+      .from("trips")
+      .update({ paid_travelers: newPaidTravelers } as never)
+      .eq("id", tripId);
+    
+    if (error) {
+      // Revert on error
+      setPaidTravelers(prev => {
+        const next = new Set(prev);
+        next.delete(travelerName);
+        return next;
+      });
+      toast({
+        title: "Payment failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     toast({
       title: "Payment recorded",
       description: `${travelerName} has been marked as paid`,
     });
-  }, []);
+  }, [tripId, paidTravelers]);
 
   const handleToggleActivity = useCallback((dayNumber: number, activityIndex: number) => {
     const key = `${dayNumber}-${activityIndex}`;

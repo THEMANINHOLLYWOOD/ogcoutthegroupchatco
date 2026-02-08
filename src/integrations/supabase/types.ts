@@ -295,6 +295,7 @@ export type Database = {
           link_expires_at: string | null
           organizer_id: string | null
           organizer_name: string
+          paid_travelers: Json | null
           return_date: string
           share_code: string
           share_image_url: string | null
@@ -319,6 +320,7 @@ export type Database = {
           link_expires_at?: string | null
           organizer_id?: string | null
           organizer_name: string
+          paid_travelers?: Json | null
           return_date: string
           share_code?: string
           share_image_url?: string | null
@@ -343,6 +345,7 @@ export type Database = {
           link_expires_at?: string | null
           organizer_id?: string | null
           organizer_name?: string
+          paid_travelers?: Json | null
           return_date?: string
           share_code?: string
           share_image_url?: string | null
