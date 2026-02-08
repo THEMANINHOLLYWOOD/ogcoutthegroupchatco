@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, AlertCircle, MapPin } from "lucide-react";
+import { extractUUID } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CountdownTimer } from "@/components/trip/CountdownTimer";
 import { TravelerPaymentStatus } from "@/components/trip/TravelerPaymentStatus";
@@ -16,7 +17,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 
 export default function TripDashboard() {
-  const { tripId } = useParams<{ tripId: string }>();
+  const { tripId: rawTripId } = useParams<{ tripId: string }>();
+  const tripId = extractUUID(rawTripId);
   const { user } = useAuth();
   const [trip, setTrip] = useState<SavedTrip | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,6 +159,27 @@ export default function TripDashboard() {
     setAddingToDay(dayNumber);
     setShowAddModal(true);
   };
+
+  // Invalid UUID - show error immediately
+  if (!tripId) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <AlertCircle className="w-12 h-12 text-destructive mb-4" />
+        <h1 className="text-xl font-semibold text-foreground mb-2">
+          Invalid Trip Link
+        </h1>
+        <p className="text-muted-foreground mb-6 text-center">
+          This link appears to be corrupted. Please request a new link.
+        </p>
+        <Link to="/">
+          <Button variant="outline">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Go Home
+          </Button>
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
