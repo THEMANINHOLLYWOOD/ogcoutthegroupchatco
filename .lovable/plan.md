@@ -1,141 +1,110 @@
 
-# Fix Corrupted Share Link URLs
+# Fix: Ensure Itinerary is Static and Never Regenerates
 
-## Problem Identified
-When sharing via `navigator.share()`, some platforms (iMessage, WhatsApp, etc.) concatenate the `text` and `url` properties into a single clickable element. When recipients tap the "link", the entire text becomes part of the URL path.
-
-**What you're seeing:**
-```text
-URL received: /trip/0e4c087b-9c0a-40ad-9310-065960ac584c Join our trip to Lima! Use code: 7KNWN9
-Expected:     /trip/0e4c087b-9c0a-40ad-9310-065960ac584c
-```
-
-**Database error:**
-```text
-invalid input syntax for type uuid: "0e4c087b-9c0a-40ad-9310-065960ac584c Join our trip to Lima! Use code: 7KNWN9"
-```
-
----
+## Problem
+When shared trip links are opened, the itinerary sometimes appears to "reload" or "rebuild" instead of showing the already-generated static content.
 
 ## Root Cause
-The `tripId` from `useParams()` contains extra text appended by the share platform. This corrupted string is passed directly to Supabase, which fails to parse it as a UUID.
+Two issues identified:
+
+1. **Race Condition**: If multiple users open a shared link simultaneously while `itinerary_status = "pending"`, each viewer triggers a separate `generateItinerary` call
+2. **Missing Guard in Edge Function**: The `generate-itinerary` function doesn't check if itinerary is already being generated or is complete before starting
+
+## Solution
+
+### 1. Add Guard to Edge Function
+Check current status before generating. Skip if already `"generating"` or `"complete"`.
+
+```text
+Edge Function Logic:
+1. Fetch current trip status
+2. If status is "complete" → return existing itinerary
+3. If status is "generating" → return "in progress" message
+4. If status is "pending" → proceed with generation
+```
+
+### 2. Update TripView.tsx
+Only trigger generation for `"pending"` status (current behavior is correct, but add extra safety).
 
 ---
 
-## Solution
-Add a UUID sanitization utility that extracts the valid UUID from a potentially corrupted string, and apply it in all trip-related pages.
-
-### Changes
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/lib/utils.ts` | Add `extractUUID()` helper function |
-| `src/pages/TripView.tsx` | Sanitize `tripId` before using |
-| `src/pages/TripDashboard.tsx` | Sanitize `tripId` before using |
-| `src/pages/ClaimTrip.tsx` | Sanitize `tripId` before using |
+| `supabase/functions/generate-itinerary/index.ts` | Add status check before generating |
+| `src/pages/TripView.tsx` | Improve logging, no logic change needed |
 
 ---
 
-## Implementation
-
-### 1. New Utility Function
-
-Add to `src/lib/utils.ts`:
+## Edge Function Changes
 
 ```typescript
-/**
- * Extracts a valid UUID from a potentially corrupted string.
- * Handles cases where share platforms append extra text to URLs.
- * 
- * Example: "0e4c087b-9c0a-40ad-9310-065960ac584c Join our trip" 
- *       → "0e4c087b-9c0a-40ad-9310-065960ac584c"
- */
-export function extractUUID(input: string | undefined): string | null {
-  if (!input) return null;
-  
-  // UUID v4 regex pattern
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-  const match = input.match(uuidPattern);
-  
-  return match ? match[0] : null;
+// Before generating, check current status
+const { data: currentTrip } = await supabase
+  .from("trips")
+  .select("itinerary_status, itinerary")
+  .eq("id", tripId)
+  .single();
+
+// Skip if already complete
+if (currentTrip?.itinerary_status === "complete" && currentTrip?.itinerary) {
+  console.log("Itinerary already complete, skipping generation");
+  return new Response(JSON.stringify({ 
+    success: true, 
+    itinerary: currentTrip.itinerary,
+    skipped: true 
+  }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// Skip if already generating (another request is handling it)
+if (currentTrip?.itinerary_status === "generating") {
+  console.log("Itinerary generation already in progress");
+  return new Response(JSON.stringify({ 
+    success: true, 
+    inProgress: true 
+  }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 ```
-
-### 2. Apply Sanitization in TripView.tsx
-
-```typescript
-import { extractUUID } from "@/lib/utils";
-
-export default function TripView() {
-  const { tripId: rawTripId } = useParams<{ tripId: string }>();
-  const tripId = extractUUID(rawTripId);
-  
-  // ... rest of component
-  
-  // If tripId is invalid after sanitization, show error
-  if (!tripId) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <AlertCircle className="w-12 h-12 text-destructive mb-4" />
-        <h1 className="text-xl font-semibold">Invalid Trip Link</h1>
-        <p className="text-muted-foreground mb-6 text-center">
-          This link appears to be corrupted. Please request a new link.
-        </p>
-        <Link to="/">
-          <Button variant="outline">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Home
-          </Button>
-        </Link>
-      </div>
-    );
-  }
-}
-```
-
-### 3. Same Pattern for TripDashboard.tsx and ClaimTrip.tsx
-
-Apply the same sanitization to these pages.
 
 ---
 
 ## Data Flow After Fix
 
 ```text
-User taps corrupted share link
+Trip Created → status = "pending", itinerary = null
        ↓
-URL: /trip/UUID%20Join%20our%20trip...
+First viewer opens link
        ↓
-React Router extracts: "UUID Join our trip..."
+Check status → "pending" → Trigger generation
        ↓
-extractUUID() parses: "UUID" ← Valid UUID only
+Status updates to "generating"
        ↓
-Supabase query uses: "UUID"
+Second viewer opens link (simultaneously)
        ↓
-Trip loads correctly ✓
+Check status → "generating" → Skip, wait for realtime update
+       ↓
+AI generates itinerary
+       ↓
+Status updates to "complete", itinerary saved
+       ↓
+Both viewers receive update via realtime subscription
+       ↓
+All future viewers see "complete" → Display stored itinerary
 ```
-
----
-
-## Why This Happens
-
-Different platforms handle `navigator.share()` differently:
-
-| Platform | Behavior |
-|----------|----------|
-| iOS Messages | Concatenates text + URL into single tappable link |
-| WhatsApp | Keeps text and URL separate |
-| Twitter | Keeps text and URL separate |
-| Email | Varies by email client |
-
-The Web Share API doesn't guarantee how platforms will format the shared content. Our app needs to be resilient to this variance.
 
 ---
 
 ## Summary
 
-| Issue | Fix |
-|-------|-----|
-| Corrupted UUID from URL | Extract valid UUID with regex |
-| Database query fails | Sanitize before querying |
-| Poor error message | Show "Invalid Trip Link" for corrupted URLs |
+| Change | Purpose |
+|--------|---------|
+| Guard in edge function | Prevent duplicate generation |
+| Status check before AI call | Skip if already complete |
+| "generating" detection | Prevent race condition |
+
+This ensures the itinerary is generated exactly once and all viewers see the same static content.
