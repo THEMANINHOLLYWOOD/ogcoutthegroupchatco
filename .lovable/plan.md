@@ -1,311 +1,255 @@
 
-
-# Add Full Trip Information + Pay Button to Shared Trip View
+# Enhanced Trip Creation Flow + Collaborative Reactions
 
 ## Overview
-This plan enhances the shared trip page (`TripView.tsx`) to display all the same information as the creator's page (`TripReadyStep.tsx`) and replaces the Share section with a "Pay" button that lets recipients select themselves and mark as paid.
+
+This plan addresses four key improvements:
+1. Add an ID/passport upload step as the **first step** of trip creation (now 4 steps total)
+2. For signed-in users with saved travel documents, show a "Use saved info" button
+3. Ensure itinerary is stored and consistent across all viewers (already working)
+4. Ensure reactions display correctly with counts on day buttons (already implemented)
 
 ---
 
-## Current State Comparison
+## Current State Analysis
 
-| Section | Creator (TripReadyStep) | Shared (TripView) |
-|---------|------------------------|-------------------|
-| Countdown Timer | ✓ | ✗ |
-| AI Group Image | ✓ | ✗ |
-| Destination Card | ✓ | Header only |
-| Traveler Payment Status | ✓ | ✗ |
-| Itinerary | ✓ | ✓ |
-| Cost Summary | ✓ | ✓ |
-| Bottom Action | Share Trip | Share Button → **Change to Pay** |
+### What's Already Working
+- **Itinerary Storage**: The `generate-itinerary` edge function saves itinerary to the `trips.itinerary` column - all viewers see the same data
+- **Reactions Database**: The `activity_reactions` table exists with proper RLS policies
+- **Day Button Counts**: `ItineraryView.tsx` already has `getDayReactionCount()` function showing counts on day buttons
+- **Traveler Documents**: Database table `traveler_documents` exists with save/retrieve functions
 
----
-
-## Part 1: Add Missing Components to TripView
-
-### Components to Add
-
-1. **CountdownTimer** - Show the booking window expiration
-2. **TripGroupImage** - AI-generated group image
-3. **Destination Card** - Detailed trip info with dates, nights, accommodation, flights
-4. **TravelerPaymentStatus** - List of travelers with payment status
-
-### Layout Changes
-
-```text
-CURRENT TripView:
-1. Back Button
-2. TripHeader (hero)
-3. Your Itinerary
-4. Cost Breakdown
-5. Share Section ← Remove
-
-NEW TripView:
-1. Back Button
-2. TripHeader (hero)
-3. Countdown Timer         ← ADD
-4. AI Group Image          ← ADD
-5. Destination Card        ← ADD
-6. Traveler Payment Status ← ADD
-7. Your Itinerary
-8. Cost Breakdown
-9. Pay Button (sticky)     ← REPLACE Share
-```
+### What Needs Changes
+- Add a new "Your Info" step as step 1 (ID upload or use saved info)
+- Update step numbering from 3 to 4 steps
+- Verify reactions work for all signed-in users viewing shared links
 
 ---
 
-## Part 2: Replace Share with Pay Button
+## Part 1: New ID Upload Step (Step 1 of 4)
 
-### Current ShareButton Behavior
-- Shows share code display
-- Has "Share with Friends" button
+### New Component: `YourInfoStep.tsx`
 
-### New PayButton Behavior
-1. User taps "Pay" button at bottom
-2. Modal or drawer opens
-3. User selects which traveler they are (from list)
-4. User confirms payment
-5. Shows "Paid" status with checkmark
-
-### New Component: TravelerPaymentPicker
-
-```typescript
-interface TravelerPaymentPickerProps {
-  travelers: TravelerCost[];
-  paidTravelers: Set<string>;
-  onPayForTraveler: (travelerName: string) => Promise<void>;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-```
-
-UI Flow:
-```text
-┌─────────────────────────────────────────────────┐
-│  Who are you paying for?                        │
-│                                                 │
-│  ○ John Smith         $1,245                    │
-│  ○ Jane Doe           $1,189                    │
-│  ● Mike Johnson       $1,312  ← Selected        │
-│                                                 │
-│  ┌─────────────────────────────────────────┐    │
-│  │        Pay $1,312                       │    │
-│  └─────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────┘
-
-After payment:
-┌─────────────────────────────────────────────────┐
-│  ✓ Paid                                         │
-│    Mike Johnson's spot is confirmed!            │
-└─────────────────────────────────────────────────┘
-```
-
----
-
-## Part 3: Persist Payment Status
-
-### Database Consideration
-Currently, `paidTravelers` is stored in local state (not persisted). For the shared view to work:
-
-**Option A: Add to trips table** (Recommended for MVP)
-- Add `paid_travelers` JSONB column to `trips` table
-- Store array of traveler names who have paid
-
-**Option B: Separate payments table** (Future)
-- Create `trip_payments` table with proper tracking
-
-For now, we'll use Option A with a database migration.
-
-### Migration SQL
-```sql
-ALTER TABLE trips ADD COLUMN paid_travelers jsonb DEFAULT '[]'::jsonb;
-```
-
----
-
-## Part 4: Implementation Details
-
-### TripView.tsx Changes
-
-**New Imports:**
-```typescript
-import { CountdownTimer } from "@/components/trip/CountdownTimer";
-import { TripGroupImage } from "@/components/trip/TripGroupImage";
-import { TravelerPaymentStatus } from "@/components/trip/TravelerPaymentStatus";
-```
-
-**New State:**
-```typescript
-const [paidTravelers, setPaidTravelers] = useState<Set<string>>(new Set());
-```
-
-**Load paid status from trip:**
-```typescript
-useEffect(() => {
-  if (trip?.paid_travelers) {
-    setPaidTravelers(new Set(trip.paid_travelers));
-  }
-}, [trip]);
-```
-
-**Handle payment:**
-```typescript
-const handlePayForTraveler = async (travelerName: string) => {
-  // Update database
-  const newPaidTravelers = [...paidTravelers, travelerName];
-  await supabase
-    .from('trips')
-    .update({ paid_travelers: newPaidTravelers })
-    .eq('id', tripId);
-  
-  // Update local state
-  setPaidTravelers(new Set(newPaidTravelers));
-  
-  toast({
-    title: "Payment confirmed!",
-    description: `${travelerName}'s spot is secured`,
-  });
-};
-```
-
-### New Component: TravelerPaymentDrawer
-
-```typescript
-// src/components/trip/TravelerPaymentDrawer.tsx
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Button } from "@/components/ui/button";
-import { TravelerCost } from "@/lib/tripTypes";
-
-interface TravelerPaymentDrawerProps {
-  travelers: TravelerCost[];
-  paidTravelers: Set<string>;
-  onPay: (travelerName: string) => Promise<void>;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-export function TravelerPaymentDrawer({
-  travelers,
-  paidTravelers,
-  onPay,
-  open,
-  onOpenChange,
-}: TravelerPaymentDrawerProps) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [isPaying, setIsPaying] = useState(false);
-  
-  const unpaidTravelers = travelers.filter(t => !paidTravelers.has(t.traveler_name));
-  
-  const handlePay = async () => {
-    if (!selected) return;
-    setIsPaying(true);
-    await onPay(selected);
-    setIsPaying(false);
-    onOpenChange(false);
-  };
-  
-  return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
-        <DrawerHeader>
-          <DrawerTitle>Who are you paying for?</DrawerTitle>
-        </DrawerHeader>
-        <div className="p-4">
-          <RadioGroup value={selected || ""} onValueChange={setSelected}>
-            {unpaidTravelers.map((traveler) => (
-              <label key={traveler.traveler_name} className="...">
-                <RadioGroupItem value={traveler.traveler_name} />
-                <span>{traveler.traveler_name}</span>
-                <span>${traveler.subtotal}</span>
-              </label>
-            ))}
-          </RadioGroup>
-          
-          <Button 
-            onClick={handlePay}
-            disabled={!selected || isPaying}
-            className="w-full mt-4"
-          >
-            {isPaying ? "Processing..." : `Pay $${selectedTraveler?.subtotal}`}
-          </Button>
-        </div>
-      </DrawerContent>
-    </Drawer>
-  );
-}
-```
-
----
-
-## Part 5: Update TripReadyStep
-
-Also update `TripReadyStep.tsx` to persist paid status to database instead of just local state.
-
----
-
-## Files to Modify/Create
-
-| File | Action |
-|------|--------|
-| Database migration | Add `paid_travelers` column |
-| `src/components/trip/TravelerPaymentDrawer.tsx` | **CREATE** - New drawer for selecting traveler to pay |
-| `src/pages/TripView.tsx` | Add all missing components, replace Share with Pay button |
-| `src/components/trip-wizard/TripReadyStep.tsx` | Persist payment status to database |
-| `src/lib/tripTypes.ts` | Add `paid_travelers` to `SavedTrip` type |
-| `src/integrations/supabase/types.ts` | Will auto-update after migration |
-
----
-
-## Updated TripView Layout
+A minimalistic Apple-style step that:
+1. Checks if user is signed in
+2. If signed in and has saved document → shows "Use your saved info" button
+3. Shows ID upload options (camera/file upload)
+4. Shows "Skip for now" option
 
 ```text
 ┌──────────────────────────────────────────────────┐
-│  ← Home                                          │
-├──────────────────────────────────────────────────┤
+│  Your Travel Info                                │
+│  Let's set you up for seamless booking           │
 │                                                  │
-│           [Hero Header: Paris, France]           │
-│           May 15 - May 22 • 4 travelers          │
+│  ┌──────────────────────────────────────────┐    │
+│  │  ✨ Use saved passport info              │    │
+│  │     John Michael Doe • Exp: 2028-05-15   │    │
+│  └──────────────────────────────────────────┘    │
+│                    or                            │
+│  ┌──────────────────────────────────────────┐    │
+│  │  📷  Scan ID or Passport                 │    │
+│  │     Quick AI-powered extraction          │    │
+│  └──────────────────────────────────────────┘    │
 │                                                  │
-├──────────────────────────────────────────────────┤
-│  ⏱️ Prices locked for: 23:45:12                  │
-├──────────────────────────────────────────────────┤
 │  ┌──────────────────────────────────────────┐    │
-│  │        [AI Group Image]                  │    │
+│  │  📤  Upload ID photo                     │    │
+│  │     From your photo library              │    │
 │  └──────────────────────────────────────────┘    │
-├──────────────────────────────────────────────────┤
-│  📍 Paris                                   ✏️   │
-│     France                                       │
-│  ──────────────────────────────────────────────  │
-│  📅 Dates          🏨 Hotel                      │
-│  May 15–22         Le Grand Paris               │
-│  ──────────────────────────────────────────────  │
-│  👥 Group          ✈️ Flights                   │
-│  4 people          8:30 AM → 11:45 AM           │
-├──────────────────────────────────────────────────┤
-│  Travelers                          2/4 paid     │
-│  ──────────────────────────────────────────────  │
-│  👤 John Smith (Organizer)  $1,245      ✓ Paid  │
-│  👤 Jane Doe                $1,189      ✓ Paid  │
-│  👤 Mike Johnson            $1,312      [Pay]   │
-│  👤 Sarah Lee               $1,278      [Pay]   │
-├──────────────────────────────────────────────────┤
-│  Your Itinerary                                  │
-│  [Day 1 · 3] [Day 2] [Day 3 · 2]                │
-│  ┌──────────────────────────────────────────┐    │
-│  │ 9:00 AM - Eiffel Tower                   │    │
-│  │           ~$30/person  👍 2 👎 0         │    │
-│  └──────────────────────────────────────────┘    │
-├──────────────────────────────────────────────────┤
-│  Base Trip Cost                                  │
-│  $5,024 total    ~$1,256/person                 │
-│  [Expand for details]                            │
-├──────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────┐    │
-│  │              💳 Pay                       │    │
-│  └──────────────────────────────────────────┘    │
-│  Secure your spot on this trip                   │
+│                                                  │
+│  ─────────────────────────────────────────────   │
+│                                                  │
+│  [Skip for now →]                                │
 └──────────────────────────────────────────────────┘
+```
+
+### Step Flow Logic
+
+```text
+User opens /create-trip
+       ↓
+Step 1: YourInfoStep
+       ↓
+┌─────────────────────────────────────────────┐
+│ User has saved document?                     │
+│   YES → Show "Use saved info" button         │
+│   NO  → Show ID upload options               │
+│                                             │
+│ User can also:                               │
+│   - Skip entirely                            │
+│   - Scan new ID (replaces saved)             │
+└─────────────────────────────────────────────┘
+       ↓
+Step 2: TripDetailsStep (destination, dates)
+       ↓
+Step 3: AddTravelersStep
+       ↓
+Step 4: Ready (searching → results)
+```
+
+---
+
+## Part 2: Update CreateTrip.tsx
+
+### New Step Type and Numbers
+
+```typescript
+type Step = "your-info" | "trip-details" | "travelers" | "searching" | "ready";
+
+const stepNumbers: Record<Step, number> = {
+  "your-info": 1,
+  "trip-details": 2,
+  travelers: 3,
+  searching: 3,
+  ready: 4,
+};
+
+const totalSteps = 4;
+```
+
+### Initial Step
+
+```typescript
+const [step, setStep] = useState<Step>("your-info");
+```
+
+### Handler for YourInfoStep
+
+```typescript
+const handleYourInfoContinue = useCallback((document: SavedDocument | null) => {
+  if (document) {
+    setSavedDocument(document);
+  }
+  setStep("trip-details");
+}, []);
+```
+
+---
+
+## Part 3: ID Scan Integration
+
+### Use Existing Components
+
+The project already has ID scanning components:
+- `IDUploadCard.tsx` - Upload buttons
+- `IDProcessing.tsx` - Processing spinner
+- `TravelerForm.tsx` - Edit extracted data
+- `TravelerReview.tsx` - Review extracted data
+- `idExtraction.ts` - AI extraction logic
+- `travelerService.ts` - Save to database
+
+### Save Document After Extraction
+
+When user scans ID:
+1. Call `extract-id` edge function
+2. Show extraction results for review
+3. If user confirms, call `saveUserDocument()` to persist
+4. Continue to trip details
+
+---
+
+## Part 4: Database Verification
+
+### Existing Tables (No Changes Needed)
+
+| Table | Purpose | Status |
+|-------|---------|--------|
+| `trips.itinerary` | Stores generated itinerary | ✓ Working |
+| `traveler_documents` | Stores user's own travel document | ✓ Exists |
+| `activity_reactions` | Stores thumbs up/down | ✓ Working |
+
+### RLS Policies (Already Correct)
+
+| Table | Policy | Status |
+|-------|--------|--------|
+| `activity_reactions` | Anyone can view | ✓ |
+| `activity_reactions` | Signed-in users can add their own | ✓ |
+| `traveler_documents` | Users can manage their own | ✓ |
+
+---
+
+## Part 5: Reactions Verification
+
+### Current Implementation Status
+
+The reactions system is already fully implemented:
+
+1. **ItineraryView.tsx** - Has `getDayReactionCount()` helper showing counts on day buttons
+2. **TripView.tsx** - Passes `reactions`, `onReact`, and `canReact` props to `ItineraryView`
+3. **TripReadyStep.tsx** - Same reaction props for creator view
+4. **ReactionBubbles.tsx** - Shows 👍/👎 buttons with counts
+5. **reactionService.ts** - Handles add/remove/fetch with realtime subscriptions
+
+### What Works
+
+```text
+✓ Any signed-in user can react (not just the creator)
+✓ Reactions update in real-time via Supabase subscriptions
+✓ Day buttons show total reaction counts
+✓ User can only have one reaction per activity (toggle)
+✓ Visual feedback when user has reacted
+```
+
+### Edge Case: Not Signed In
+
+Users who aren't signed in see reactions but buttons are disabled. The toast "Sign in required" appears if they try to react.
+
+---
+
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| `src/components/trip-wizard/YourInfoStep.tsx` | **CREATE** - New ID upload step |
+| `src/pages/CreateTrip.tsx` | Update steps, add your-info step |
+
+---
+
+## New Component: YourInfoStep.tsx
+
+```typescript
+interface YourInfoStepProps {
+  userId?: string;
+  savedDocument: SavedDocument | null;
+  onContinue: (document: SavedDocument | null) => void;
+  onBack: () => void;
+}
+
+// States:
+// 1. "idle" - show options
+// 2. "scanning" - show camera/file picker
+// 3. "processing" - extracting data
+// 4. "review" - show extracted data for confirmation
+// 5. "saving" - saving to database
+```
+
+### UI Elements
+
+1. **Header**: "Your Travel Info" with subtitle
+2. **Saved Info Card**: If user has saved document, show preview with "Use This" button
+3. **Scan Options**: Camera and upload buttons (using existing IDUploadCard)
+4. **Skip Link**: "Skip for now" at bottom
+
+---
+
+## Updated CreateTrip Flow
+
+```text
+/create-trip loads
+       ↓
+Fetch savedDocument for user (if signed in)
+       ↓
+Show Step 1: YourInfoStep
+       ↓
+User chooses:
+├─ "Use saved info" → Continue with saved doc
+├─ "Scan ID" → Extract → Review → Save → Continue
+├─ "Skip" → Continue without doc
+       ↓
+Step 2: TripDetailsStep
+       ↓
+Step 3: AddTravelersStep
+       ↓
+Step 4: SearchingStep → TripReadyStep
 ```
 
 ---
@@ -314,10 +258,8 @@ Also update `TripReadyStep.tsx` to persist paid status to database instead of ju
 
 | Change | Impact |
 |--------|--------|
-| Add countdown timer | Recipients see booking window |
-| Add group image | Visual consistency with creator view |
-| Add destination card | All trip details visible |
-| Add traveler status | See who has/hasn't paid |
-| Replace Share with Pay | Recipients can mark themselves as paid |
-| Persist to database | Payment status syncs across all viewers |
-
+| Add YourInfoStep | 4-step wizard with ID upload first |
+| Use saved info button | Signed-in users can skip ID scan |
+| Verify itinerary storage | Already working - no changes |
+| Verify reactions | Already working - any signed-in user can react |
+| Day button counts | Already implemented - shows total reactions |
