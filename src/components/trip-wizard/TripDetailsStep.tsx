@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { CalendarIcon, Plane, ArrowRight } from "lucide-react";
+import { CalendarIcon, Plane, ArrowRight, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AirportAutocomplete } from "./AirportAutocomplete";
+import { UpdateDocumentModal } from "./UpdateDocumentModal";
 import { Airport, getUserLocationAirport } from "@/lib/airportSearch";
 import { format, addDays, isBefore, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
+import { useAuth } from "@/hooks/useAuth";
+import { getUserDocument, SavedDocument } from "@/lib/travelerService";
 
 interface TripDetailsStepProps {
   organizerName?: string;
@@ -16,10 +19,22 @@ interface TripDetailsStepProps {
 }
 
 export function TripDetailsStep({ organizerName, onContinue }: TripDetailsStepProps) {
+  const { user } = useAuth();
   const [destination, setDestination] = useState<Airport | null>(null);
   const [origin, setOrigin] = useState<Airport | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [isDetectingLocation, setIsDetectingLocation] = useState(true);
+  const [savedDocument, setSavedDocument] = useState<SavedDocument | null>(null);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+
+  // Fetch user's saved travel document
+  useEffect(() => {
+    if (user?.id) {
+      getUserDocument(user.id).then((doc) => {
+        if (doc) setSavedDocument(doc);
+      });
+    }
+  }, [user?.id]);
 
   // Auto-detect user's location on mount
   useEffect(() => {
@@ -68,7 +83,29 @@ export function TripDetailsStep({ organizerName, onContinue }: TripDetailsStepPr
         <p className="text-muted-foreground text-lg">
           Plan your trip in seconds
         </p>
+        
+        {/* Update Document Button - only for signed in users with saved document */}
+        {user && savedDocument && (
+          <button
+            onClick={() => setShowDocumentModal(true)}
+            className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <CreditCard className="w-3 h-3" />
+            <span>Update passport/ID</span>
+          </button>
+        )}
       </div>
+
+      {/* Document Update Modal */}
+      {user && (
+        <UpdateDocumentModal
+          open={showDocumentModal}
+          onOpenChange={setShowDocumentModal}
+          userId={user.id}
+          currentDocument={savedDocument}
+          onDocumentUpdated={setSavedDocument}
+        />
+      )}
 
       {/* Form */}
       <div className="space-y-6">
