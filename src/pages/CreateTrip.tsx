@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { YourInfoStep } from "@/components/trip-wizard/YourInfoStep";
 import { TripDetailsStep } from "@/components/trip-wizard/TripDetailsStep";
 import { AddTravelersStep } from "@/components/trip-wizard/AddTravelersStep";
 import { SearchingStep } from "@/components/trip-wizard/SearchingStep";
@@ -15,21 +16,22 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserDocument, SavedDocument } from "@/lib/travelerService";
 
-type Step = "trip-details" | "travelers" | "searching" | "ready";
+type Step = "your-info" | "trip-details" | "travelers" | "searching" | "ready";
 
 const stepNumbers: Record<Step, number> = {
-  "trip-details": 1,
-  travelers: 2,
-  searching: 2,
-  ready: 3,
+  "your-info": 1,
+  "trip-details": 2,
+  travelers: 3,
+  searching: 3,
+  ready: 4,
 };
 
-const totalSteps = 3;
+const totalSteps = 4;
 
 export default function CreateTrip() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const [step, setStep] = useState<Step>("trip-details");
+  const [step, setStep] = useState<Step>("your-info");
   
   // Trip state
   const [destination, setDestination] = useState<Airport | null>(null);
@@ -72,6 +74,13 @@ export default function CreateTrip() {
 
   // Get organizer name from profile or default
   const organizerName = profile?.full_name || "Traveler";
+
+  const handleYourInfoContinue = useCallback((document: SavedDocument | null) => {
+    if (document) {
+      setSavedDocument(document);
+    }
+    setStep("trip-details");
+  }, []);
 
   const handleTripDetailsContinue = useCallback((data: { destination: Airport; origin: Airport; departureDate: Date; returnDate: Date }) => {
     setDestination(data.destination);
@@ -233,6 +242,21 @@ export default function CreateTrip() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 lg:py-12">
         <AnimatePresence mode="wait">
+          {step === "your-info" && (
+            <motion.div
+              key="your-info"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <YourInfoStep
+                userId={user?.id}
+                savedDocument={savedDocument}
+                onContinue={handleYourInfoContinue}
+              />
+            </motion.div>
+          )}
+
           {step === "trip-details" && (
             <motion.div
               key="trip-details"
