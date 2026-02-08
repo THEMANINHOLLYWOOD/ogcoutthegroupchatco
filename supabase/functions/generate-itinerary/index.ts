@@ -35,6 +35,44 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check current status before generating to prevent race conditions
+    const { data: currentTrip, error: fetchError } = await supabase
+      .from("trips")
+      .select("itinerary_status, itinerary")
+      .eq("id", tripId)
+      .single();
+
+    if (fetchError) {
+      console.error("Failed to fetch trip status:", fetchError);
+      throw new Error("Trip not found");
+    }
+
+    // Skip if already complete - return stored itinerary
+    if (currentTrip?.itinerary_status === "complete" && currentTrip?.itinerary) {
+      console.log("Itinerary already complete, returning stored version for trip:", tripId);
+      return new Response(JSON.stringify({ 
+        success: true, 
+        itinerary: currentTrip.itinerary,
+        skipped: true 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Skip if already generating - another request is handling it
+    if (currentTrip?.itinerary_status === "generating") {
+      console.log("Itinerary generation already in progress for trip:", tripId);
+      return new Response(JSON.stringify({ 
+        success: true, 
+        inProgress: true 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Only proceed if status is "pending"
+    console.log("Status is pending, proceeding with generation for trip:", tripId);
+
     // Update status to generating
     await supabase
       .from("trips")
