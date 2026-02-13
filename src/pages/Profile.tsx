@@ -10,18 +10,10 @@ import { PassportIDPage } from '@/components/profile/PassportIDPage';
 import { TravelStamps } from '@/components/profile/TravelStamps';
 import { FriendsPassportRow } from '@/components/profile/FriendsPassportRow';
 import { TripSuggestionCard } from '@/components/profile/TripSuggestionCard';
-import { PlacesVisited } from '@/components/profile/PlacesVisited';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 
 const Profile = () => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const [addStampOpen, setAddStampOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -76,21 +68,11 @@ const Profile = () => {
             homeCountry={profile.home_country}
             createdAt={profile.created_at}
           />
-          <TravelStamps onAddStamp={() => setAddStampOpen(true)} />
+          <TravelStamps />
           <FriendsPassportRow />
           <TripSuggestionCard />
         </PassportLayout>
       </div>
-
-      {/* Add Stamp Dialog - reuses PlacesVisited add logic */}
-      <Dialog open={addStampOpen} onOpenChange={setAddStampOpen}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Travel Stamps</DialogTitle>
-          </DialogHeader>
-          <PlacesVisited />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
