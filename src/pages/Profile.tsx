@@ -10,6 +10,8 @@ import { PersonalInfoForm } from '@/components/profile/PersonalInfoForm';
 import { PhotoGallery } from '@/components/profile/PhotoGallery';
 import { PlacesVisited } from '@/components/profile/PlacesVisited';
 import { ProfileTrips } from '@/components/profile/ProfileTrips';
+import { FriendsList } from '@/components/profile/FriendsList';
+import { NotificationBell } from '@/components/notifications/NotificationPanel';
 
 const Profile = () => {
   const { profile, signOut } = useAuth();
@@ -47,9 +49,12 @@ const Profile = () => {
             </Link>
           </Button>
           <span className="font-semibold text-lg">Profile</span>
-          <Button variant="ghost" size="icon" onClick={handleSignOut} className="h-10 w-10">
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <Button variant="ghost" size="icon" onClick={handleSignOut} className="h-10 w-10">
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </motion.header>
 
@@ -65,12 +70,18 @@ const Profile = () => {
         <Tabs defaultValue="about" className="w-full">
           {/* Scrollable tab list for mobile */}
           <ScrollArea className="w-full -mx-4 px-4">
-            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-4 h-12 p-1 mb-6 gap-1">
+            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-5 h-12 p-1 mb-6 gap-1">
               <TabsTrigger 
                 value="about" 
                 className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
               >
                 About
+              </TabsTrigger>
+              <TabsTrigger 
+                value="friends" 
+                className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
+              >
+                Friends
               </TabsTrigger>
               <TabsTrigger 
                 value="photos" 
@@ -105,6 +116,16 @@ const Profile = () => {
                 phone={profile.phone}
                 fullName={profile.full_name}
               />
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="friends" className="mt-0">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
+            >
+              <FriendsList />
             </motion.div>
           </TabsContent>
 
