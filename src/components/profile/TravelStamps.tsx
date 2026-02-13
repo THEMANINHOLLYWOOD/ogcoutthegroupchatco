@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, Plane } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { getCountryFlag } from '@/data/continents';
 
 interface StampData {
   id: string;
@@ -14,11 +13,18 @@ interface StampData {
 }
 
 const STAMP_COLORS = [
-  'hsl(0 60% 45%)',    // red
-  'hsl(220 60% 45%)',  // blue
-  'hsl(150 50% 35%)',  // green
-  'hsl(280 45% 45%)',  // purple
-  'hsl(25 70% 45%)',   // orange
+  'hsl(0 60% 45%)',
+  'hsl(220 60% 45%)',
+  'hsl(150 50% 35%)',
+  'hsl(280 45% 45%)',
+  'hsl(25 70% 45%)',
+];
+
+const STAMP_SHAPES = [
+  { className: 'w-[72px] h-[72px] rounded-full', hasIcon: true, hasSubtitle: false },
+  { className: 'w-[100px] h-[64px] rounded-sm', hasIcon: false, hasSubtitle: true, doubleBorder: true },
+  { className: 'w-[90px] h-[60px] rounded-xl', hasIcon: true, hasSubtitle: true },
+  { className: 'w-[88px] h-[56px] rounded-[50%]', hasIcon: false, hasSubtitle: true },
 ];
 
 function hashCode(str: string): number {
@@ -99,12 +105,14 @@ export const TravelStamps = ({ userId, readOnly = false, onAddStamp }: TravelSta
           No stamps yet
         </p>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-3 items-center justify-center">
           {stamps.map((stamp, i) => {
             const hash = hashCode(stamp.id);
-            const rotation = (hash % 17) - 8;
+            const rotation = (hash % 12) - 6;
             const color = STAMP_COLORS[hash % STAMP_COLORS.length];
-            const flag = getCountryFlag(stamp.country);
+            const shape = STAMP_SHAPES[hash % STAMP_SHAPES.length];
+            const opacity = 0.75 + (hash % 16) / 100;
+            const showSubtitle = shape.hasSubtitle && stamp.type === 'city';
 
             return (
               <motion.div
@@ -112,20 +120,35 @@ export const TravelStamps = ({ userId, readOnly = false, onAddStamp }: TravelSta
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.05 * i, type: 'spring', stiffness: 400, damping: 20 }}
-                className="flex flex-col items-center justify-center w-[68px] h-[68px] rounded-lg border-2 border-dashed p-1"
+                className={`${shape.className} border-2 flex flex-col items-center justify-center p-1.5 relative`}
                 style={{
                   borderColor: color,
+                  color,
                   transform: `rotate(${rotation}deg)`,
-                  opacity: 0.85,
+                  opacity,
                 }}
               >
-                <span className="text-lg leading-none">{flag}</span>
+                {/* Double border effect for rectangles */}
+                {shape.doubleBorder && (
+                  <div
+                    className="absolute inset-[3px] rounded-sm border pointer-events-none"
+                    style={{ borderColor: color }}
+                  />
+                )}
+
+                {shape.hasIcon && (
+                  <Plane className="w-2.5 h-2.5 mb-0.5" strokeWidth={2.5} />
+                )}
                 <span
-                  className="text-[8px] uppercase tracking-wider font-semibold text-center leading-tight mt-1 line-clamp-2"
-                  style={{ color }}
+                  className="text-[9px] font-bold uppercase tracking-wider text-center leading-tight line-clamp-2"
                 >
                   {stamp.name}
                 </span>
+                {showSubtitle && (
+                  <span className="text-[7px] uppercase tracking-wide opacity-70 mt-0.5">
+                    {stamp.country}
+                  </span>
+                )}
               </motion.div>
             );
           })}
