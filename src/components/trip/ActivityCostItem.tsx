@@ -32,27 +32,6 @@ export function ActivityCostItem({
       className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-muted/30 transition-colors"
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <motion.div
-          animate={{ 
-            scale: isSelected ? 1 : 0.85,
-          }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          className={cn(
-            "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-            isSelected 
-              ? "border-primary bg-primary" 
-              : "border-muted-foreground/40"
-          )}
-        >
-          {isSelected && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              className="w-1.5 h-1.5 rounded-full bg-primary-foreground"
-            />
-          )}
-        </motion.div>
         <span className={cn(
           "text-sm truncate transition-colors duration-150",
           isSelected ? "text-foreground" : "text-muted-foreground"
