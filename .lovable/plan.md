@@ -1,83 +1,43 @@
 
 
-# Strip Navy/Gold Theme -- Use Standard Design System
+# Redesign Travel Stamps -- Authentic Passport Style
 
-## Problem
-Every passport component uses custom `--passport-navy`, `--passport-gold`, `--passport-gold-muted`, `--passport-navy-light` tokens via inline `style={{}}` props. This creates a visual disconnect from the rest of the app (iMessage-inspired, clean white/dark).
+## Current State
+Each stamp is a uniform 68x68px dashed-border square with a flag emoji and tiny city name. They all look identical in shape, which feels generic.
 
-## Solution
-Replace all passport-specific color tokens with the existing design system variables (`background`, `foreground`, `muted`, `border`, `primary`, etc.) and remove the passport CSS tokens from `index.css`. Use Tailwind classes instead of inline styles wherever possible.
+## New Design
+Inspired by the reference image, each stamp will have a **varied shape** (circle, rectangle, rounded-rectangle, oval) determined by a hash of its ID. Stamps will feature:
 
----
+- The **city or country name** in bold uppercase as the focal point
+- A small **country name** subtitle for city stamps
+- A small **airplane icon** (Lucide `Plane`) inside some shapes as decoration
+- **Solid borders** (not dashed) with the existing ink color palette
+- A subtle **worn/faded opacity** (0.75-0.9) for authenticity
+- **Deterministic random rotation** (-6 to 6 degrees) as before
+- Varied **sizing** per shape type so the grid feels organic
 
-## Changes
+## Stamp Shape Variants (4 types, picked by hash)
 
-### 1. Remove passport tokens from `src/index.css`
-Delete the `--passport-navy`, `--passport-navy-light`, `--passport-gold`, `--passport-gold-muted`, `--passport-paper`, `--passport-ink-*` custom properties from both `:root` and `.dark`.
+1. **Circle** -- round border, city name centered, ~72px diameter
+2. **Rectangle** -- horizontal rectangle with double-line border effect, ~100x64px
+3. **Rounded Rectangle** -- softer corners, single border, ~90x60px
+4. **Oval** -- elliptical shape, ~88x56px
 
-### 2. Restyle `PassportLayout.tsx`
-- Background: `bg-card` (white/dark card) instead of navy
-- Border: `border-border` instead of gold
-- Header text: `text-muted-foreground` for "OTGC Passport", `text-foreground` for user name
-- Divider: `bg-border`
+## Layout
+- Flex-wrap grid with `gap-3` for breathing room
+- `items-center justify-center` so stamps cluster naturally
+- Mobile-optimized: stamps resize slightly on narrow screens via responsive widths
 
-### 3. Restyle `PassportIDPage.tsx`
-- Section label: `text-muted-foreground`
-- Info labels: `text-muted-foreground`
-- Info values: `text-foreground`
-- Divider: `border-border`
+## Technical Details
 
-### 4. Restyle `HeadshotUpload.tsx`
-- Placeholder background: `bg-muted`
-- Initials color: `text-muted-foreground`
+### File modified: `src/components/profile/TravelStamps.tsx`
 
-### 5. Restyle `TravelStamps.tsx`
-- Section label and empty state: `text-muted-foreground`
-- Add button: standard ghost with `text-muted-foreground`
-- Loading skeleton: `bg-muted`
-- Keep the colorful stamp borders (red, blue, green, purple, orange) as-is -- these are the "ink" stamps and should stay vibrant
+**Changes:**
+- Add a `STAMP_SHAPES` array with 4 shape types, each defining CSS classes for dimensions, border-radius, and optional inner ring
+- Hash determines shape, color, and rotation per stamp
+- Replace flag emoji with Lucide `Plane` icon for select shapes (based on hash)
+- City name rendered in uppercase bold, country as small subtitle
+- Use `border` (solid) instead of `border-dashed`
+- Slightly larger stamps overall for readability on mobile
 
-### 6. Restyle `FriendsPassportRow.tsx`
-- Section label: `text-muted-foreground`
-- Search input: `bg-secondary` / `text-foreground`
-- Search results: `bg-secondary`
-- Friend name/labels: `text-foreground` / `text-muted-foreground`
-- Friend card border: `border-border`
-- Friend card bg: `bg-muted`
-
-### 7. Restyle `TripSuggestionCard.tsx`
-- Section label: `text-muted-foreground`
-- Card background: `bg-secondary`
-- City name: `text-foreground`
-- Tagline: `text-muted-foreground`
-- Shuffle icon: `text-muted-foreground`
-- CTA button: standard `bg-primary text-primary-foreground`
-
-### 8. Restyle `FriendPassportDrawer.tsx`
-- Drawer background: `bg-background`
-- Title: `text-muted-foreground`
-- Labels: `text-muted-foreground`
-- Values: `text-foreground`
-- Photo placeholder bg: `bg-muted`
-
----
-
-## Mobile Optimization
-- Ensure `PassportLayout` uses `mx-4` margin (16px sides) and no horizontal overflow
-- Stamps grid uses `gap-2` and smaller stamp size on narrow screens
-- Friends row stays horizontally scrollable with proper padding
-
-## Files Modified
-
-| File | Action |
-|------|--------|
-| `src/index.css` | Remove passport tokens |
-| `src/components/profile/PassportLayout.tsx` | Replace inline styles with Tailwind classes |
-| `src/components/profile/PassportIDPage.tsx` | Replace inline styles with Tailwind classes |
-| `src/components/profile/HeadshotUpload.tsx` | Replace inline styles with Tailwind classes |
-| `src/components/profile/TravelStamps.tsx` | Replace inline styles with Tailwind classes |
-| `src/components/profile/FriendsPassportRow.tsx` | Replace inline styles with Tailwind classes |
-| `src/components/profile/TripSuggestionCard.tsx` | Replace inline styles with Tailwind classes |
-| `src/components/profile/FriendPassportDrawer.tsx` | Replace inline styles with Tailwind classes |
-
-No database changes needed.
+**No other files need to change** -- data fetching, props, and parent integration stay the same.
