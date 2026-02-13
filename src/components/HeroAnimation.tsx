@@ -4,7 +4,7 @@ import { TypingIndicator } from "./TypingIndicator";
 import { TripPreviewCard } from "./TripPreviewCard";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+
 
 const useCurrentTimeEST = () => {
   const [time, setTime] = useState(() => {
@@ -31,18 +31,20 @@ const useCurrentTimeEST = () => {
   return time;
 };
 
-interface SuggestedDestination {
+interface Destination {
   city: string;
   country: string;
   emoji: string;
   price_estimate: number;
-  image_search_term?: string;
+  imageUrl: string;
 }
 
-const getDestinationImage = (dest: SuggestedDestination): string => {
-  const term = dest.image_search_term || `${dest.city} ${dest.country} landmark`;
-  const query = encodeURIComponent(term);
-  return `https://source.unsplash.com/800x400/?${query}`;
+const VEGAS: Destination = {
+  city: "Las Vegas",
+  country: "USA",
+  emoji: "🎰",
+  price_estimate: 580,
+  imageUrl: "https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=800&q=80",
 };
 
 interface ChatMessage {
@@ -52,7 +54,7 @@ interface ChatMessage {
   isCard?: boolean;
 }
 
-const buildMessages = (dest: SuggestedDestination): ChatMessage[] => [
+const buildMessages = (dest: Destination): ChatMessage[] => [
   { message: "Wordle 1,681 3/6\n\n⬜🟨⬜⬜🟩\n🟩⬜🟨🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Sarah" },
   { message: "Wordle 1,681 5/6\n\n⬜⬜⬜⬜⬜\n⬜🟨⬜🟨⬜\n🟨🟩⬜🟩⬜\n🟩🟩⬜🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Mike" },
   { message: "Wordle 1,681 2/6\n\n🟩🟩🟨⬜🟩\n🟩🟩🟩🟩🟩", sender: true, name: "You" },
@@ -64,26 +66,18 @@ const buildMessages = (dest: SuggestedDestination): ChatMessage[] => [
 
 const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
-const FALLBACK: SuggestedDestination = { city: "Cartagena", country: "Colombia", emoji: "🏖️", price_estimate: 620, image_search_term: "Cartagena Colombia old town colorful" };
+
 
 export const HeroAnimation = () => {
   const currentTime = useCurrentTimeEST();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [showTyping, setShowTyping] = useState(false);
-  const [destination, setDestination] = useState<SuggestedDestination>(FALLBACK);
+  const [destination] = useState<Destination>(VEGAS);
   const typingName = "Sarah";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch AI destination on mount
-  useEffect(() => {
-    supabase.functions.invoke('suggest-destination').then(({ data, error }) => {
-      if (!error && data?.city) {
-        setDestination(data as SuggestedDestination);
-      }
-    });
-  }, []);
 
   // Auto-scroll
   useEffect(() => {
@@ -179,7 +173,7 @@ export const HeroAnimation = () => {
                   dates="Mar 22 - 25"
                   travelers={3}
                   pricePerPerson={destination.price_estimate}
-                  imageUrl={getDestinationImage(destination)}
+                  imageUrl={destination.imageUrl}
                   onClick={handleCardClick}
                 />
               ) : (
