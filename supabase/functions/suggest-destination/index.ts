@@ -20,14 +20,15 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-lite",
+        temperature: 1.5,
         messages: [
           {
             role: "system",
-            content: "You suggest a single random aspirational travel destination. Pick something exciting and fun — a place friends would spontaneously book. Vary your picks widely across the globe."
+            content: "You suggest a single random aspirational travel destination. Pick something exciting and fun — a place friends would spontaneously book. Never repeat the same city twice. Vary your picks widely across ALL continents and regions: Southeast Asia, South America, Africa, Middle East, Caribbean, Eastern Europe, Oceania, etc. Avoid overly common suggestions like Paris, Tokyo, or London."
           },
           {
             role: "user",
-            content: "Suggest one random travel destination for a group of friends."
+            content: `Suggest one random travel destination for a group of friends. Random seed: ${Math.random().toString(36).slice(2)}-${Date.now()}`
           }
         ],
         tools: [
