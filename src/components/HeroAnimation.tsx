@@ -38,6 +38,12 @@ interface SuggestedDestination {
   price_estimate: number;
 }
 
+const getDestinationImage = (city: string, country: string): string => {
+  // Use loremflickr which reliably returns destination photos
+  const query = encodeURIComponent(`${city} ${country} travel landmark`);
+  return `https://loremflickr.com/800/400/${query}?lock=${city.length * 7 + country.length * 13}`;
+};
+
 interface ChatMessage {
   name: string;
   message: string;
@@ -57,7 +63,7 @@ const buildMessages = (dest: SuggestedDestination): ChatMessage[] => [
 
 const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
-const FALLBACK: SuggestedDestination = { city: "Tokyo", country: "Japan", emoji: "🗼", price_estimate: 849 };
+const FALLBACK: SuggestedDestination = { city: "Cartagena", country: "Colombia", emoji: "🏖️", price_estimate: 620 };
 
 export const HeroAnimation = () => {
   const currentTime = useCurrentTimeEST();
@@ -168,10 +174,11 @@ export const HeroAnimation = () => {
               )}
               {msg.isCard ? (
                 <TripPreviewCard
-                  destination={destination.city}
+                  destination={`${destination.city}, ${destination.country}`}
                   dates="Mar 22 - 25"
                   travelers={3}
                   pricePerPerson={destination.price_estimate}
+                  imageUrl={getDestinationImage(destination.city, destination.country)}
                   onClick={handleCardClick}
                 />
               ) : (
