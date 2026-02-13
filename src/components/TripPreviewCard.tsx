@@ -8,6 +8,7 @@ interface TripPreviewCardProps {
   pricePerPerson: number;
   imageUrl?: string;
   delay?: number;
+  onClick?: () => void;
 }
 
 export const TripPreviewCard = ({
@@ -17,6 +18,7 @@ export const TripPreviewCard = ({
   pricePerPerson,
   imageUrl = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80",
   delay = 0,
+  onClick,
 }: TripPreviewCardProps) => {
   return (
     <motion.div
@@ -30,6 +32,7 @@ export const TripPreviewCard = ({
         damping: 30
       }}
       whileHover={{ scale: 1.02, y: -4 }}
+      onClick={onClick}
       className="w-full max-w-sm overflow-hidden rounded-2xl bg-card shadow-soft border border-border cursor-pointer transition-shadow hover:shadow-glass"
     >
       {/* Image */}

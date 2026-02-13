@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { YourInfoStep } from "@/components/trip-wizard/YourInfoStep";
 import { TripDetailsStep } from "@/components/trip-wizard/TripDetailsStep";
 import { AddTravelersStep } from "@/components/trip-wizard/AddTravelersStep";
@@ -30,8 +30,10 @@ const totalSteps = 4;
 
 export default function CreateTrip() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
   const [step, setStep] = useState<Step>("your-info");
+  const initialDestination = searchParams.get("destination") || undefined;
   
   // Trip state
   const [destination, setDestination] = useState<Airport | null>(null);
@@ -267,6 +269,7 @@ export default function CreateTrip() {
               <TripDetailsStep
                 organizerName={organizerName}
                 onContinue={handleTripDetailsContinue}
+                initialDestinationCity={initialDestination}
               />
             </motion.div>
           )}
