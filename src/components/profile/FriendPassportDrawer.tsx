@@ -26,9 +26,9 @@ export const FriendPassportDrawer = ({ open, onOpenChange, friend }: FriendPassp
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh]" style={{ background: 'hsl(var(--passport-navy))' }}>
+      <DrawerContent className="max-h-[85vh] bg-background">
         <DrawerHeader className="pb-0">
-          <DrawerTitle className="text-center text-xs uppercase tracking-[0.3em]" style={{ color: 'hsl(var(--passport-gold-muted))' }}>
+          <DrawerTitle className="text-center text-xs uppercase tracking-[0.3em] text-muted-foreground">
             Passport
           </DrawerTitle>
         </DrawerHeader>
@@ -36,24 +36,24 @@ export const FriendPassportDrawer = ({ open, onOpenChange, friend }: FriendPassp
         <div className="overflow-y-auto px-6 pb-8">
           {/* ID Section */}
           <div className="flex gap-4 py-6">
-            <div className="w-[72px] h-[96px] rounded-md overflow-hidden flex-shrink-0" style={{ background: 'hsl(var(--passport-navy-light))' }}>
+            <div className="w-[72px] h-[96px] rounded-md overflow-hidden flex-shrink-0 bg-muted">
               {profile.avatar_url ? (
                 <img src={profile.avatar_url} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-lg font-semibold" style={{ color: 'hsl(var(--passport-gold-muted))' }}>
+                <div className="w-full h-full flex items-center justify-center text-lg font-semibold text-muted-foreground">
                   {initials}
                 </div>
               )}
             </div>
             <div className="space-y-2">
               <div>
-                <p className="text-[10px] uppercase tracking-widest" style={{ color: 'hsl(var(--passport-gold-muted) / 0.5)' }}>Name</p>
-                <p className="text-sm font-medium" style={{ color: 'hsl(var(--passport-gold))' }}>{profile.full_name || 'Unknown'}</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">Name</p>
+                <p className="text-sm font-medium text-foreground">{profile.full_name || 'Unknown'}</p>
               </div>
               {profile.home_country && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest" style={{ color: 'hsl(var(--passport-gold-muted) / 0.5)' }}>Home</p>
-                  <p className="text-sm" style={{ color: 'hsl(var(--passport-gold))' }}>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">Home</p>
+                  <p className="text-sm text-foreground">
                     {getCountryFlag(profile.home_country)} {profile.home_city ? `${profile.home_city}, ` : ''}{profile.home_country}
                   </p>
                 </div>
@@ -62,7 +62,7 @@ export const FriendPassportDrawer = ({ open, onOpenChange, friend }: FriendPassp
           </div>
 
           {/* Stamps */}
-          <div style={{ borderTop: '1px solid hsl(var(--passport-gold) / 0.1)' }}>
+          <div className="border-t border-border">
             <TravelStamps userId={profile.id} readOnly />
           </div>
         </div>

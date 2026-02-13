@@ -65,7 +65,7 @@ export const TravelStamps = ({ userId, readOnly = false, onAddStamp }: TravelSta
   if (isLoading) {
     return (
       <div className="p-6">
-        <div className="h-20 rounded-xl animate-pulse" style={{ background: 'hsl(var(--passport-navy-light))' }} />
+        <div className="h-20 rounded-xl animate-pulse bg-muted" />
       </div>
     );
   }
@@ -78,7 +78,7 @@ export const TravelStamps = ({ userId, readOnly = false, onAddStamp }: TravelSta
       className="p-6"
     >
       <div className="flex items-center justify-between mb-4">
-        <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: 'hsl(var(--passport-gold-muted) / 0.5)' }}>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50">
           Travel Stamps · {stamps.length}
         </p>
         {!readOnly && onAddStamp && (
@@ -86,8 +86,7 @@ export const TravelStamps = ({ userId, readOnly = false, onAddStamp }: TravelSta
             variant="ghost"
             size="sm"
             onClick={onAddStamp}
-            className="h-7 px-2 text-xs rounded-lg"
-            style={{ color: 'hsl(var(--passport-gold-muted))' }}
+            className="h-7 px-2 text-xs rounded-lg text-muted-foreground"
           >
             <Plus className="w-3 h-3 mr-1" />
             Add
@@ -96,14 +95,14 @@ export const TravelStamps = ({ userId, readOnly = false, onAddStamp }: TravelSta
       </div>
 
       {stamps.length === 0 ? (
-        <p className="text-sm text-center py-6" style={{ color: 'hsl(var(--passport-gold-muted) / 0.4)' }}>
+        <p className="text-sm text-center py-6 text-muted-foreground/40">
           No stamps yet
         </p>
       ) : (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2">
           {stamps.map((stamp, i) => {
             const hash = hashCode(stamp.id);
-            const rotation = (hash % 17) - 8; // -8 to 8 degrees
+            const rotation = (hash % 17) - 8;
             const color = STAMP_COLORS[hash % STAMP_COLORS.length];
             const flag = getCountryFlag(stamp.country);
 
@@ -113,9 +112,9 @@ export const TravelStamps = ({ userId, readOnly = false, onAddStamp }: TravelSta
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.05 * i, type: 'spring', stiffness: 400, damping: 20 }}
-                className="flex flex-col items-center justify-center w-[72px] h-[72px] rounded-lg border-2 border-dashed p-1"
+                className="flex flex-col items-center justify-center w-[68px] h-[68px] rounded-lg border-2 border-dashed p-1"
                 style={{
-                  borderColor: `${color}`,
+                  borderColor: color,
                   transform: `rotate(${rotation}deg)`,
                   opacity: 0.85,
                 }}

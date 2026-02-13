@@ -256,18 +256,3 @@
   animation: spin-slow 8s linear infinite;
 }
 
-/* Passport Design Tokens */
-:root {
-  --passport-navy: 220 40% 13%;
-  --passport-navy-light: 220 30% 20%;
-  --passport-gold: 43 74% 49%;
-  --passport-gold-muted: 43 40% 65%;
-  --passport-paper: 40 30% 96%;
-  --passport-ink-red: 0 60% 45%;
-  --passport-ink-blue: 220 60% 45%;
-  --passport-ink-green: 150 50% 35%;
-}
-
-.dark {
-  --passport-paper: 220 15% 15%;
-}
