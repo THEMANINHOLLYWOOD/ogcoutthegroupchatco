@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AirportAutocomplete } from "./AirportAutocomplete";
-import { Airport, getUserLocationAirport } from "@/lib/airportSearch";
+import { Airport, getUserLocationAirport, searchAirports } from "@/lib/airportSearch";
 import { format, addDays, isBefore, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
@@ -13,9 +13,10 @@ import { DateRange } from "react-day-picker";
 interface TripDetailsStepProps {
   organizerName?: string;
   onContinue: (data: { destination: Airport; origin: Airport; departureDate: Date; returnDate: Date }) => void;
+  initialDestinationCity?: string;
 }
 
-export function TripDetailsStep({ organizerName, onContinue }: TripDetailsStepProps) {
+export function TripDetailsStep({ organizerName, onContinue, initialDestinationCity }: TripDetailsStepProps) {
   const [destination, setDestination] = useState<Airport | null>(null);
   const [origin, setOrigin] = useState<Airport | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -32,6 +33,16 @@ export function TripDetailsStep({ organizerName, onContinue }: TripDetailsStepPr
     };
     detectLocation();
   }, []);
+
+  // Pre-fill destination from query param
+  useEffect(() => {
+    if (initialDestinationCity && !destination) {
+      const results = searchAirports(initialDestinationCity);
+      if (results.length > 0) {
+        setDestination(results[0]);
+      }
+    }
+  }, [initialDestinationCity]);
 
   const isValid = destination && origin && dateRange?.from && dateRange?.to;
 

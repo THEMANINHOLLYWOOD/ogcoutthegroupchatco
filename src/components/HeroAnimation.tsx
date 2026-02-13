@@ -3,6 +3,8 @@ import { ChatBubble } from "./ChatBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { TripPreviewCard } from "./TripPreviewCard";
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const useCurrentTimeEST = () => {
   const [time, setTime] = useState(() => {
@@ -29,6 +31,13 @@ const useCurrentTimeEST = () => {
   return time;
 };
 
+interface SuggestedDestination {
+  city: string;
+  country: string;
+  emoji: string;
+  price_estimate: number;
+}
+
 interface ChatMessage {
   name: string;
   message: string;
@@ -36,28 +45,40 @@ interface ChatMessage {
   isCard?: boolean;
 }
 
-const initialMessages: ChatMessage[] = [
+const buildMessages = (dest: SuggestedDestination): ChatMessage[] => [
   { message: "Wordle 1,681 3/6\n\n⬜🟨⬜⬜🟩\n🟩⬜🟨🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Sarah" },
   { message: "Wordle 1,681 5/6\n\n⬜⬜⬜⬜⬜\n⬜🟨⬜🟨⬜\n🟨🟩⬜🟩⬜\n🟩🟩⬜🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Mike" },
   { message: "Wordle 1,681 2/6\n\n🟩🟩🟨⬜🟩\n🟩🟩🟩🟩🟩", sender: true, name: "You" },
   { message: "NO WAY", sender: false, name: "Sarah" },
-  { message: "ok we need to celebrate this... Vegas?", sender: false, name: "Mike" },
+  { message: `ok we need to celebrate this... ${dest.city}? ${dest.emoji}`, sender: false, name: "Mike" },
   { message: "I'm so down 🎰", sender: true, name: "You" },
   { message: "wait I found this app that books everything", sender: false, name: "Sarah" },
 ];
 
-// Custom timing for each message (in ms from start)
 const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
+
+const FALLBACK: SuggestedDestination = { city: "Tokyo", country: "Japan", emoji: "🗼", price_estimate: 849 };
 
 export const HeroAnimation = () => {
   const currentTime = useCurrentTimeEST();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [showTyping, setShowTyping] = useState(false);
+  const [destination, setDestination] = useState<SuggestedDestination>(FALLBACK);
   const typingName = "Sarah";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when new messages appear
+  // Fetch AI destination on mount
+  useEffect(() => {
+    supabase.functions.invoke('suggest-destination').then(({ data, error }) => {
+      if (!error && data?.city) {
+        setDestination(data as SuggestedDestination);
+      }
+    });
+  }, []);
+
+  // Auto-scroll
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
@@ -67,20 +88,20 @@ export const HeroAnimation = () => {
     }
   }, [messages, showTyping]);
 
-  // Initial animation sequence
+  // Animation sequence — rebuild when destination changes
   useEffect(() => {
+    const allMessages = buildMessages(destination);
+
     const messageTimers = messageTimings.map((timing, index) => {
       return setTimeout(() => {
-        setMessages(initialMessages.slice(0, index + 1));
+        setMessages(allMessages.slice(0, index + 1));
       }, timing);
     });
 
-    // Show typing indicator after last message
     const typingTimer = setTimeout(() => {
       setShowTyping(true);
     }, 8000);
 
-    // Show trip card after typing - add as a message so it stays in position
     const cardTimer = setTimeout(() => {
       setShowTyping(false);
       setMessages(prev => [...prev, {
@@ -96,7 +117,11 @@ export const HeroAnimation = () => {
       clearTimeout(typingTimer);
       clearTimeout(cardTimer);
     };
-  }, []);
+  }, [destination]);
+
+  const handleCardClick = () => {
+    navigate(`/create-trip?destination=${encodeURIComponent(destination.city)}`);
+  };
 
   return (
     <div className="relative w-full max-w-md mx-auto">
@@ -143,11 +168,11 @@ export const HeroAnimation = () => {
               )}
               {msg.isCard ? (
                 <TripPreviewCard
-                  destination="Las Vegas"
+                  destination={destination.city}
                   dates="Mar 22 - 25"
                   travelers={3}
-                  pricePerPerson={649}
-                  imageUrl="https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=800&q=80"
+                  pricePerPerson={destination.price_estimate}
+                  onClick={handleCardClick}
                 />
               ) : (
                 <ChatBubble
@@ -170,11 +195,10 @@ export const HeroAnimation = () => {
             </motion.div>
           )}
           
-          {/* Scroll anchor */}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input bar - display only, not interactive */}
+        {/* Input bar */}
         <div className="p-3 border-t border-border bg-card">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
