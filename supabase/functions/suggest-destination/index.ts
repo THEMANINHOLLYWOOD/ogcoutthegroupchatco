@@ -5,12 +5,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const FALLBACK = { city: "Cartagena", country: "Colombia", emoji: "🏖️", price_estimate: 620 };
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const regions = [
+      "Southeast Asia", "East Asia", "South Asia", "Middle East",
+      "Caribbean", "Central America", "South America", "West Africa",
+      "East Africa", "North Africa", "Southern Africa",
+      "Western Europe", "Eastern Europe", "Scandinavia", "Mediterranean",
+      "Oceania", "Pacific Islands", "Central Asia"
+    ];
+    const region = regions[Math.floor(Math.random() * regions.length)];
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -20,15 +31,15 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-lite",
-        temperature: 1.5,
+        temperature: 2.0,
         messages: [
           {
             role: "system",
-            content: "You suggest a single random aspirational travel destination. Pick something exciting and fun — a place friends would spontaneously book. Never repeat the same city twice. Vary your picks widely across ALL continents and regions: Southeast Asia, South America, Africa, Middle East, Caribbean, Eastern Europe, Oceania, etc. Avoid overly common suggestions like Paris, Tokyo, or London."
+            content: `You suggest ONE iconic travel destination from ${region}. Pick a city famous for something specific — nightlife, ancient ruins, beaches, food, architecture, nature, etc. NEVER suggest Tokyo, Paris, London, New York, or Dubai. Be creative and pick lesser-known but exciting places that friends would love.`
           },
           {
             role: "user",
-            content: `Suggest one random travel destination for a group of friends. Random seed: ${Math.random().toString(36).slice(2)}-${Date.now()}`
+            content: `Give me one amazing travel destination in ${region}. Seed: ${crypto.randomUUID()}`
           }
         ],
         tools: [
@@ -56,10 +67,8 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      // Fallback destination
-      return new Response(JSON.stringify({ city: "Tokyo", country: "Japan", emoji: "🗼", price_estimate: 849 }), {
+      console.error("AI gateway error:", response.status, await response.text());
+      return new Response(JSON.stringify(FALLBACK), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -75,13 +84,12 @@ serve(async (req) => {
       });
     }
 
-    // Fallback
-    return new Response(JSON.stringify({ city: "Tokyo", country: "Japan", emoji: "🗼", price_estimate: 849 }), {
+    return new Response(JSON.stringify(FALLBACK), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("suggest-destination error:", e);
-    return new Response(JSON.stringify({ city: "Tokyo", country: "Japan", emoji: "🗼", price_estimate: 849 }), {
+    return new Response(JSON.stringify(FALLBACK), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
