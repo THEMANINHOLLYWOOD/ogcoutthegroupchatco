@@ -12,7 +12,7 @@ export const PassportLayout = ({ children, userName }: PassportLayoutProps) => {
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 200, damping: 24 }}
-      className="mx-4 mb-8 rounded-3xl overflow-hidden border border-border bg-card shadow-sm"
+      className="mx-4 mb-8 rounded-3xl border border-border bg-card shadow-sm overflow-visible"
     >
       {/* Passport Cover Header */}
       <div className="px-6 pt-8 pb-6 text-center border-b border-border">

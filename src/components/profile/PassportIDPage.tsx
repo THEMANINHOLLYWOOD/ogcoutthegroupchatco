@@ -24,11 +24,11 @@ export const PassportIDPage = ({
   const memberSince = format(new Date(createdAt), 'dd MMM yyyy');
 
   const InfoRow = ({ label, value }: { label: string; value: string }) => (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 min-w-0">
       <span className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
         {label}
       </span>
-      <span className="text-sm font-medium text-foreground">
+      <span className="text-sm font-medium text-foreground truncate">
         {value}
       </span>
     </div>
@@ -55,10 +55,12 @@ export const PassportIDPage = ({
         </div>
       </div>
 
-      <div className="mt-5 pt-4 border-t border-border grid grid-cols-2 gap-3">
+      <div className="mt-5 pt-4 border-t border-border space-y-3">
         <InfoRow label="Email" value={email} />
-        <InfoRow label="Phone" value={phone || 'Not set'} />
-        <InfoRow label="Member Since" value={memberSince} />
+        <div className="grid grid-cols-2 gap-3">
+          <InfoRow label="Phone" value={phone || 'Not set'} />
+          <InfoRow label="Member Since" value={memberSince} />
+        </div>
       </div>
     </motion.div>
   );
