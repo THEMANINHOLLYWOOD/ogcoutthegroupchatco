@@ -36,12 +36,13 @@ interface SuggestedDestination {
   country: string;
   emoji: string;
   price_estimate: number;
+  image_search_term?: string;
 }
 
-const getDestinationImage = (city: string, country: string): string => {
-  // Use loremflickr which reliably returns destination photos
-  const query = encodeURIComponent(`${city} ${country} travel landmark`);
-  return `https://loremflickr.com/800/400/${query}?lock=${city.length * 7 + country.length * 13}`;
+const getDestinationImage = (dest: SuggestedDestination): string => {
+  const term = dest.image_search_term || `${dest.city} ${dest.country} landmark`;
+  const query = encodeURIComponent(term);
+  return `https://source.unsplash.com/800x400/?${query}`;
 };
 
 interface ChatMessage {
@@ -63,7 +64,7 @@ const buildMessages = (dest: SuggestedDestination): ChatMessage[] => [
 
 const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
-const FALLBACK: SuggestedDestination = { city: "Cartagena", country: "Colombia", emoji: "🏖️", price_estimate: 620 };
+const FALLBACK: SuggestedDestination = { city: "Cartagena", country: "Colombia", emoji: "🏖️", price_estimate: 620, image_search_term: "Cartagena Colombia old town colorful" };
 
 export const HeroAnimation = () => {
   const currentTime = useCurrentTimeEST();
@@ -178,7 +179,7 @@ export const HeroAnimation = () => {
                   dates="Mar 22 - 25"
                   travelers={3}
                   pricePerPerson={destination.price_estimate}
-                  imageUrl={getDestinationImage(destination.city, destination.country)}
+                  imageUrl={getDestinationImage(destination)}
                   onClick={handleCardClick}
                 />
               ) : (

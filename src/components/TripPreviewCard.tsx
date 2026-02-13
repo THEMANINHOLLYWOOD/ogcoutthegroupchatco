@@ -1,5 +1,34 @@
 import { motion } from "framer-motion";
 import { MapPin, Calendar, Users, DollarSign } from "lucide-react";
+import { useState } from "react";
+
+const ImageWithFallback = ({ src, alt, destination }: { src: string; alt: string; destination: string }) => {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="relative h-40 overflow-hidden">
+      {!failed ? (
+        <img
+          src={src}
+          alt={alt}
+          className="w-full h-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="w-full h-full bg-gradient-to-br from-primary/30 via-accent/20 to-primary/10 flex items-center justify-center">
+          <span className="text-4xl">🌍</span>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+      <div className="absolute bottom-3 left-3 right-3">
+        <h3 className="text-white font-semibold text-lg flex items-center gap-1.5">
+          <MapPin className="w-4 h-4" />
+          {destination}
+        </h3>
+      </div>
+    </div>
+  );
+};
 
 interface TripPreviewCardProps {
   destination: string;
@@ -36,20 +65,11 @@ export const TripPreviewCard = ({
       className="w-full max-w-sm overflow-hidden rounded-2xl bg-card shadow-soft border border-border cursor-pointer transition-shadow hover:shadow-glass"
     >
       {/* Image */}
-      <div className="relative h-40 overflow-hidden">
-        <img
-          src={imageUrl}
-          alt={destination}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-        <div className="absolute bottom-3 left-3 right-3">
-          <h3 className="text-white font-semibold text-lg flex items-center gap-1.5">
-            <MapPin className="w-4 h-4" />
-            {destination}
-          </h3>
-        </div>
-      </div>
+      <ImageWithFallback
+        src={imageUrl}
+        alt={destination}
+        destination={destination}
+      />
 
       {/* Details */}
       <div className="p-4 space-y-3">
