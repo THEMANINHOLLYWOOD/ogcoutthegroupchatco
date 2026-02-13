@@ -84,24 +84,23 @@ export const TripSuggestionCard = () => {
       transition={{ delay: 0.7 }}
       className="p-6"
     >
-      <p className="text-[10px] uppercase tracking-[0.2em] mb-4" style={{ color: 'hsl(var(--passport-gold-muted) / 0.5)' }}>
+      <p className="text-[10px] uppercase tracking-[0.2em] mb-4 text-muted-foreground/50">
         Next Destination
       </p>
 
       <motion.div
         layout
-        className="rounded-xl p-4 relative overflow-hidden"
-        style={{ background: 'hsl(var(--passport-navy-light))' }}
+        className="rounded-xl p-4 relative overflow-hidden bg-secondary"
       >
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">{getCountryFlag(suggestion.country)}</span>
-              <h3 className="text-base font-semibold" style={{ color: 'hsl(var(--passport-gold))' }}>
+              <h3 className="text-base font-semibold text-foreground">
                 {suggestion.city}
               </h3>
             </div>
-            <p className="text-xs mb-3" style={{ color: 'hsl(var(--passport-gold-muted) / 0.6)' }}>
+            <p className="text-xs mb-3 text-muted-foreground/60">
               {suggestion.tagline}
             </p>
           </div>
@@ -109,8 +108,7 @@ export const TripSuggestionCard = () => {
             variant="ghost"
             size="icon"
             onClick={shuffle}
-            className="h-8 w-8 rounded-lg flex-shrink-0"
-            style={{ color: 'hsl(var(--passport-gold-muted))' }}
+            className="h-8 w-8 rounded-lg flex-shrink-0 text-muted-foreground"
           >
             <Shuffle className="w-3.5 h-3.5" />
           </Button>
@@ -119,7 +117,6 @@ export const TripSuggestionCard = () => {
         <Button
           onClick={() => navigate('/create-trip')}
           className="w-full h-10 rounded-xl text-sm font-medium gap-2"
-          style={{ background: 'hsl(var(--passport-gold))', color: 'hsl(var(--passport-navy))' }}
         >
           Book a trip to {suggestion.city}
           <ArrowRight className="w-4 h-4" />

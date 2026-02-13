@@ -92,13 +92,12 @@ export const HeadshotUpload = ({ avatarUrl, fullName }: HeadshotUploadProps) => 
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         onClick={() => setIsOpen(true)}
-        className="relative group w-[90px] h-[120px] rounded-lg overflow-hidden flex-shrink-0"
-        style={{ background: 'hsl(var(--passport-navy-light))' }}
+        className="relative group w-[90px] h-[120px] rounded-lg overflow-hidden flex-shrink-0 bg-muted"
       >
         {avatarUrl ? (
           <img src={avatarUrl} alt={fullName || 'Headshot'} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-xl font-semibold" style={{ color: 'hsl(var(--passport-gold-muted))' }}>
+          <div className="w-full h-full flex items-center justify-center text-xl font-semibold text-muted-foreground">
             {initials}
           </div>
         )}

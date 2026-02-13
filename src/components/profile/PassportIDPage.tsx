@@ -25,10 +25,10 @@ export const PassportIDPage = ({
 
   const InfoRow = ({ label, value }: { label: string; value: string }) => (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-widest" style={{ color: 'hsl(var(--passport-gold-muted) / 0.6)' }}>
+      <span className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
         {label}
       </span>
-      <span className="text-sm font-medium" style={{ color: 'hsl(var(--passport-gold))' }}>
+      <span className="text-sm font-medium text-foreground">
         {value}
       </span>
     </div>
@@ -41,7 +41,7 @@ export const PassportIDPage = ({
       transition={{ delay: 0.3 }}
       className="p-6"
     >
-      <p className="text-[10px] uppercase tracking-[0.2em] mb-4" style={{ color: 'hsl(var(--passport-gold-muted) / 0.5)' }}>
+      <p className="text-[10px] uppercase tracking-[0.2em] mb-4 text-muted-foreground/50">
         Identification
       </p>
 
@@ -55,7 +55,7 @@ export const PassportIDPage = ({
         </div>
       </div>
 
-      <div className="mt-5 pt-4 grid grid-cols-2 gap-3" style={{ borderTop: '1px solid hsl(var(--passport-gold) / 0.1)' }}>
+      <div className="mt-5 pt-4 border-t border-border grid grid-cols-2 gap-3">
         <InfoRow label="Email" value={email} />
         <InfoRow label="Phone" value={phone || 'Not set'} />
         <InfoRow label="Member Since" value={memberSince} />
