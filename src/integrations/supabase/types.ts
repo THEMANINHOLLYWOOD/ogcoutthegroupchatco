@@ -585,6 +585,7 @@ export type Database = {
     }
     Functions: {
       generate_share_code: { Args: never; Returns: string }
+      is_friend_of: { Args: { target_user_id: string }; Returns: boolean }
     }
     Enums: {
       media_type: "photo" | "video"
