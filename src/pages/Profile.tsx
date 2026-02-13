@@ -1,21 +1,27 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/useAuth';
-import { ProfileHeader } from '@/components/profile/ProfileHeader';
-import { PersonalInfoForm } from '@/components/profile/PersonalInfoForm';
-import { PhotoGallery } from '@/components/profile/PhotoGallery';
-import { PlacesVisited } from '@/components/profile/PlacesVisited';
-import { ProfileTrips } from '@/components/profile/ProfileTrips';
-import { FriendsList } from '@/components/profile/FriendsList';
 import { NotificationBell } from '@/components/notifications/NotificationPanel';
+import { PassportLayout } from '@/components/profile/PassportLayout';
+import { PassportIDPage } from '@/components/profile/PassportIDPage';
+import { TravelStamps } from '@/components/profile/TravelStamps';
+import { FriendsPassportRow } from '@/components/profile/FriendsPassportRow';
+import { TripSuggestionCard } from '@/components/profile/TripSuggestionCard';
+import { PlacesVisited } from '@/components/profile/PlacesVisited';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const Profile = () => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const [addStampOpen, setAddStampOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -36,7 +42,7 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header - optimized for mobile */}
+      {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -48,7 +54,7 @@ const Profile = () => {
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
-          <span className="font-semibold text-lg">Profile</span>
+          <span className="font-semibold text-lg">Passport</span>
           <div className="flex items-center gap-1">
             <NotificationBell />
             <Button variant="ghost" size="icon" onClick={handleSignOut} className="h-10 w-10">
@@ -58,108 +64,33 @@ const Profile = () => {
         </div>
       </motion.header>
 
-      {/* Profile Header */}
-      <ProfileHeader
-        avatarUrl={profile.avatar_url}
-        fullName={profile.full_name}
-        email={profile.email}
-      />
-
-      {/* Tabs - horizontally scrollable on mobile */}
-      <div className="container mx-auto px-4 pb-8">
-        <Tabs defaultValue="about" className="w-full">
-          {/* Scrollable tab list for mobile */}
-          <ScrollArea className="w-full -mx-4 px-4">
-            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-5 h-12 p-1 mb-6 gap-1">
-              <TabsTrigger 
-                value="about" 
-                className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
-              >
-                About
-              </TabsTrigger>
-              <TabsTrigger 
-                value="friends" 
-                className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
-              >
-                Friends
-              </TabsTrigger>
-              <TabsTrigger 
-                value="photos" 
-                className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
-              >
-                Photos
-              </TabsTrigger>
-              <TabsTrigger 
-                value="trips" 
-                className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
-              >
-                Trips
-              </TabsTrigger>
-              <TabsTrigger 
-                value="places" 
-                className="px-4 sm:px-2 text-sm whitespace-nowrap rounded-lg data-[state=active]:shadow-sm"
-              >
-                Places
-              </TabsTrigger>
-            </TabsList>
-            <ScrollBar orientation="horizontal" className="invisible" />
-          </ScrollArea>
-
-          <TabsContent value="about" className="mt-0">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-            >
-              <PersonalInfoForm
-                email={profile.email}
-                phone={profile.phone}
-                fullName={profile.full_name}
-              />
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="friends" className="mt-0">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-            >
-              <FriendsList />
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="photos" className="mt-0">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-            >
-              <PhotoGallery />
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="trips" className="mt-0">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-            >
-              <ProfileTrips />
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="places" className="mt-0">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ type: 'spring' as const, stiffness: 300, damping: 24 }}
-            >
-              <PlacesVisited />
-            </motion.div>
-          </TabsContent>
-        </Tabs>
+      {/* Passport */}
+      <div className="pt-6">
+        <PassportLayout userName={profile.full_name}>
+          <PassportIDPage
+            avatarUrl={profile.avatar_url}
+            fullName={profile.full_name}
+            email={profile.email}
+            phone={profile.phone}
+            homeCity={profile.home_city}
+            homeCountry={profile.home_country}
+            createdAt={profile.created_at}
+          />
+          <TravelStamps onAddStamp={() => setAddStampOpen(true)} />
+          <FriendsPassportRow />
+          <TripSuggestionCard />
+        </PassportLayout>
       </div>
+
+      {/* Add Stamp Dialog - reuses PlacesVisited add logic */}
+      <Dialog open={addStampOpen} onOpenChange={setAddStampOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Travel Stamps</DialogTitle>
+          </DialogHeader>
+          <PlacesVisited />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
