@@ -304,7 +304,7 @@ export const TravelStamps = ({ userId, readOnly = false }: TravelStampsProps) =>
           No stamps yet
         </p>
       ) : (
-        <div className="flex flex-wrap gap-3 items-center justify-center">
+        <div className="flex flex-wrap gap-3 items-center justify-center py-2 px-1">
           {stamps.map((stamp, i) => {
             const hash = hashCode(stamp.id);
             const rotation = (hash % 12) - 6;
