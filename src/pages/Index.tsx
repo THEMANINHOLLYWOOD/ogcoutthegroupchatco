@@ -178,7 +178,7 @@ const Index = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
               layout
-              className={`relative order-1 lg:order-2 ${stageOpening && !heroComplete ? "flex min-h-[calc(100dvh-4rem)] items-center" : ""}`}
+              className="relative order-1 lg:order-2"
             >
               <HeroAnimation
                 expanded={stageOpening && !heroComplete}
