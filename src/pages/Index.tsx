@@ -222,12 +222,12 @@ const Index = () => {
                 </Button>
               </div>
 
-              {/* Social proof - hidden on mobile for cleaner look */}
+              {/* Hackathon proof */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="mt-8 lg:mt-10 hidden sm:flex items-center gap-4 justify-center lg:justify-start"
+                className="mt-6 sm:mt-8 lg:mt-10 flex items-center gap-4 justify-center lg:justify-start"
               >
                 <div className="flex -space-x-2 shrink-0" aria-label="Hackathon team">
                   {hackathonPeople.map((person, index) => (
