@@ -141,11 +141,7 @@ export const HeroAnimation = ({ expanded = false, onComplete }: HeroAnimationPro
 
   return (
     <motion.div
-      animate={{
-        maxWidth: expanded ? "calc(100vw - 1.5rem)" : "18rem",
-      }}
-      transition={{ type: "spring", stiffness: 90, damping: 22, mass: 0.9 }}
-      className="relative mx-auto w-full sm:max-w-md"
+      className="relative mx-auto w-full max-w-[18rem] sm:max-w-md"
     >
       {/* iPhone-like frame */}
       <motion.div
@@ -176,9 +172,9 @@ export const HeroAnimation = ({ expanded = false, onComplete }: HeroAnimationPro
         {/* Messages container */}
         <motion.div 
           ref={scrollContainerRef}
-          animate={{ height: expanded ? "calc(100dvh - 15rem)" : "250px" }}
+          animate={{ height: expanded ? "430px" : "250px" }}
           transition={{ type: "spring", stiffness: 90, damping: 22, mass: 0.9 }}
-          className="min-h-[250px] max-h-[calc(100dvh-15rem)] space-y-3 overflow-y-auto bg-background px-3 py-3 scroll-smooth sm:h-[400px] sm:max-h-none sm:px-4 sm:py-4"
+          className="min-h-[250px] max-h-[430px] space-y-3 overflow-y-auto bg-background px-3 py-3 scroll-smooth sm:h-[400px] sm:max-h-none sm:px-4 sm:py-4"
         >
           {messages.map((msg, index) => (
             <motion.div 
