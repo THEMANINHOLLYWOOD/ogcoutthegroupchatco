@@ -8,6 +8,13 @@
       "when": 1790320455094,
       "tag": "0000_agent_chat_and_bookings",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790321677095,
+      "tag": "0001_deprecate_agent_chat_tables",
+      "breakpoints": true
     }
   ]
 }
