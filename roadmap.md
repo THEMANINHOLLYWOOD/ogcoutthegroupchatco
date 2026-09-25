@@ -5,4 +5,4 @@
 - [x] Source / Estimated tags and Tickets links in the UI
 - [x] Replace homepage proof circles with four real-person headshots
 - [x] Change homepage proof text to “Created in 36 hours for Gemini Hackathon”
-- [ ] Verify the updated proof row on desktop and mobile
+- [x] Verify the updated proof row on desktop and mobile
