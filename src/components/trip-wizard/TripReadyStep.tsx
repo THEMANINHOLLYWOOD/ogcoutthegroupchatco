@@ -364,6 +364,7 @@ export function TripReadyStep({
             <div className="text-sm font-medium text-foreground truncate">
               {tripResult.accommodation?.name || 'TBD'}
             </div>
+            <SourceTag url={tripResult.accommodation?.source_url} estimate={tripResult.accommodation?.is_estimate} />
           </div>
         </div>
 
@@ -383,6 +384,14 @@ export function TripReadyStep({
                 <span className="text-muted-foreground">Arrive: </span>
                 <span className="font-medium text-foreground">{tripResult.flights[0].arrival_time}</span>
               </div>
+            </div>
+            <div className="mt-2 space-y-1">
+              {tripResult.flights.map((f, i) => (
+                <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="truncate">{f.traveler_name} · {f.airline} · {f.origin}→{f.destination} · ${(f.outbound_price + f.return_price).toLocaleString()}</span>
+                  <SourceTag url={f.source_url} estimate={f.is_estimate} />
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -492,5 +501,16 @@ export function TripReadyStep({
         />
       )}
     </motion.div>
+  );
+}
+
+function SourceTag({ url, estimate }: { url?: string; estimate?: boolean }) {
+  if (estimate || !url) {
+    return <span className="text-[11px] text-muted-foreground/70 shrink-0 ml-2">Estimated</span>;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="text-[11px] text-primary hover:underline shrink-0 ml-2">
+      Source
+    </a>
   );
 }

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { installAiShim } from "../_shared/ai.ts";
 installAiShim();
+import { webSearch } from "../_shared/perplexity.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -86,6 +87,11 @@ serve(async (req) => {
     const end = new Date(returnDate);
     const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
+    const [eventsLive, placesLive] = await Promise.all([
+      webSearch(`Concerts, sports games, festivals, shows and special events in ${destinationCity}, ${destinationCountry} between ${departureDate} and ${returnDate}. For each: name, exact date, start time, venue, address, ticket price range in USD, ticket URL.`),
+      webSearch(`Top restaurants, bars and must-see attractions in ${destinationCity}, ${destinationCountry} right now. For each: name, neighborhood/address, opening hours, typical price per person in USD, official URL.`),
+    ]);
+
     const prompt = `TRIP: ${destinationCity}, ${destinationCountry}
 DATES: ${departureDate} to ${returnDate} (${nights} nights)
 GROUP: ${travelerCount} people
@@ -106,7 +112,13 @@ GOOD: "Three days of poolside mornings, rooftop bars, and a desert sunset drive.
 BAD: "This is a really great restaurant that serves delicious food with a wonderful atmosphere."
 GOOD: "Farm-to-table Italian. Book the patio."
 
-Group nearby attractions. Balance activities with downtime. Note LIVE EVENTS with exact dates.`;
+Group nearby attractions. Balance activities with downtime. Note LIVE EVENTS with exact dates.
+
+LIVE WEB RESULTS - build the itinerary ONLY from real places and events found here. Put real events on their exact dates and start times. Fill venue, address, price and ticket_url/source_url from these results:
+=== EVENTS ===
+${eventsLive || "(none found)"}
+=== PLACES ===
+${placesLive || "(none found)"}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -160,7 +172,11 @@ Group nearby attractions. Balance activities with downtime. Note LIVE EVENTS wit
                               },
                               is_live_event: { type: "boolean", description: "True for concerts, shows, sports on specific dates" },
                               estimated_cost: { type: "number", description: "USD per person" },
-                              tip: { type: "string", description: "One sentence. Actionable insider knowledge only." }
+                              tip: { type: "string", description: "One sentence. Actionable insider knowledge only." },
+                              venue: { type: "string" },
+                              address: { type: "string" },
+                              ticket_url: { type: "string", description: "Ticket or booking URL from results" },
+                              source_url: { type: "string", description: "Source URL from results" }
                             },
                             required: ["time", "title", "description", "type"]
                           }

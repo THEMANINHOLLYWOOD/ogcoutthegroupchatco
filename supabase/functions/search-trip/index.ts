@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { installAiShim } from "../_shared/ai.ts";
 installAiShim();
+import { webSearch } from "../_shared/perplexity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +65,15 @@ serve(async (req) => {
    Consider hotels with good location, breakfast included if possible, and standard amenities.
    Provide realistic nightly rates for hotels in ${destination.city}.`;
 
+    const uniqueOrigins = [...new Set(travelers.map(t => t.origin.iata))];
+    const searches = await Promise.all([
+      ...uniqueOrigins.map(o => webSearch(`Cheapest round-trip economy flights from ${o} to ${destination.iata} departing ${departureDate} returning ${returnDate}. List airline, departure and arrival times, price in USD per person, and where it's listed (Google Flights, Kayak, Expedia, airline site).`)),
+      webSearch(accommodationType === "airbnb"
+        ? `Best-rated Airbnb or vacation rental in ${destination.city}, ${destination.country} for ${travelers.length} guests, ${departureDate} to ${returnDate}. Give name, nightly price in USD, rating, and listing URL.`
+        : `Best-rated 3-4 star hotel in ${destination.city}, ${destination.country} for ${departureDate} to ${returnDate}. Give name, nightly price in USD, star rating, and booking URL.`),
+    ]);
+    const liveResults = searches.map((r, i) => `--- Search ${i + 1} ---\n${r || "(no results)"}`).join("\n\n");
+
     const prompt = `You are a travel planning assistant. Search for realistic flight and accommodation pricing for a group trip.
 
 TRIP DETAILS:
@@ -77,12 +87,15 @@ TRIP DETAILS:
 TRAVELERS AND ROUTES:
 ${travelerRoutes}
 
-Please provide realistic current market estimates for:
+LIVE WEB SEARCH RESULTS (use these real prices, airlines, times and source URLs; only estimate when nothing was found, and mark is_estimate true):
+${liveResults}
+
+Provide, based on the live results:
 1. Round-trip flights for each traveler from their origin to ${destination.iata}
 ${accommodationPrompt}
 3. Calculate the per-person cost breakdown including their share of accommodation
 
-Use current 2024/2025 pricing estimates based on typical market rates for these routes.`;
+Set source_url to the matching SOURCES link for each price.`;
 
     const tools = [
       {
@@ -107,6 +120,8 @@ Use current 2024/2025 pricing estimates based on typical market rates for these 
                     airline: { type: "string", description: "Suggested airline" },
                     departure_time: { type: "string", description: "Approximate departure time" },
                     arrival_time: { type: "string", description: "Approximate arrival time" },
+                    source_url: { type: "string", description: "URL where this fare was found" },
+                    is_estimate: { type: "boolean", description: "True if not confirmed by live search" },
                   },
                   required: ["traveler_name", "origin", "destination", "outbound_price", "return_price", "airline"],
                 },
@@ -119,6 +134,8 @@ Use current 2024/2025 pricing estimates based on typical market rates for these 
                   price_per_night: { type: "number", description: "Price per night in USD" },
                   total_nights: { type: "number", description: "Number of nights" },
                   rating: { type: "number", description: "Star rating (1-5)" },
+                  source_url: { type: "string", description: "Listing or booking URL" },
+                  is_estimate: { type: "boolean", description: "True if not confirmed by live search" },
                 },
                 required: ["name", "price_per_night", "total_nights", "rating"],
               },
@@ -140,7 +157,7 @@ Use current 2024/2025 pricing estimates based on typical market rates for these 
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "You are a travel planning assistant with access to current flight and hotel pricing. Provide realistic estimates based on typical market rates." },
+          { role: "system", content: "You are a travel planning assistant Use the live web search results provided. Never invent sources." },
           { role: "user", content: prompt },
         ],
         tools,

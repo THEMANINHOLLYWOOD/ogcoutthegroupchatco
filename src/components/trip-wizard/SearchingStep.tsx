@@ -8,10 +8,10 @@ interface SearchingStepProps {
 }
 
 const stages = [
-  { icon: Search, text: "Searching for the best flights..." },
-  { icon: Plane, text: "Comparing airlines and prices..." },
-  { icon: Calculator, text: "Calculating costs for everyone..." },
-  { icon: Sparkles, text: "Finding the perfect deals..." },
+  { icon: Search, text: "Checking live flight prices..." },
+  { icon: Plane, text: "Finding hotels and stays..." },
+  { icon: Calculator, text: "Looking up events on your dates..." },
+  { icon: Sparkles, text: "Calculating costs for everyone..." },
 ];
 
 export function SearchingStep({ destination, travelerCount }: SearchingStepProps) {

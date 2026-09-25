@@ -74,6 +74,11 @@ export function DashboardActivityCard({
           <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mt-0.5 sm:mt-1">
             {activity.description}
           </p>
+          {(activity.venue || activity.address) && (
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 truncate">
+              📍 {[activity.venue, activity.address].filter(Boolean).join(" · ")}
+            </p>
+          )}
         </div>
       </div>
 
@@ -84,6 +89,17 @@ export function DashboardActivityCard({
             <span className="text-[10px] sm:text-xs font-medium text-primary px-2 py-0.5 sm:py-1 bg-primary/10 rounded-full">
               ${activity.estimated_cost}
             </span>
+          )}
+          {(activity.ticket_url || activity.source_url) && (
+            <a
+              href={activity.ticket_url || activity.source_url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-[10px] sm:text-xs font-medium text-primary hover:underline"
+            >
+              {activity.ticket_url ? "Tickets" : "Details"} →
+            </a>
           )}
         </div>
         
