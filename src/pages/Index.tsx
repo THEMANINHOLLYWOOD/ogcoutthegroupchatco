@@ -11,6 +11,7 @@ import {
 import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown, User, LogOut, Map } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { AgentBar } from "@/components/agent/AgentBar";
 
 const features = [
   {
@@ -177,6 +178,8 @@ const Index = () => {
                 Let trips make it<br />
                 <span className="text-primary">out the group chat.</span>
               </h1>
+
+              <AgentBar className="max-w-lg mx-auto lg:mx-0 mb-6 lg:mb-8" />
 
               {/* Scroll indicator - mobile only */}
               <motion.div
