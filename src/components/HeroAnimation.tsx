@@ -121,13 +121,17 @@ export const HeroAnimation = ({ expanded = false, onComplete }: HeroAnimationPro
         sender: false,
         isCard: true
       }]);
-      onCompleteRef.current?.();
     }, 10000);
+
+    const completeTimer = setTimeout(() => {
+      onCompleteRef.current?.();
+    }, 11200);
 
     return () => {
       messageTimers.forEach(clearTimeout);
       clearTimeout(typingTimer);
       clearTimeout(cardTimer);
+      clearTimeout(completeTimer);
     };
   }, [destination]);
 
