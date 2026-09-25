@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import Trips from "./pages/Trips";
 import NotFound from "./pages/NotFound";
+import Chat from "./pages/Chat";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,8 @@ const App = () => (
             } />
             <Route path="/trip/:tripId/claim" element={<ClaimTrip />} />
             <Route path="/join" element={<JoinTrip />} />
+            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+            <Route path="/chat/:threadId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
             <Route path="/auth" element={<Auth />} />
             <Route
               path="/profile"
