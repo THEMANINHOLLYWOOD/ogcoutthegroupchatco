@@ -95,7 +95,7 @@ Provide, based on the live results:
 ${accommodationPrompt}
 3. Calculate the per-person cost breakdown including their share of accommodation
 
-Set source_url to the matching SOURCES link for each price.`;
+Set source_url to the matching SOURCES link for each price. Keep airline and hotel names clean (no notes like "suggested" or "unverified"); use is_estimate for that. Prefer a specific named hotel/listing found in the results with its URL.`;
 
     const tools = [
       {
