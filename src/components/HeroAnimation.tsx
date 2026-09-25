@@ -125,25 +125,25 @@ export const HeroAnimation = () => {
   };
 
   return (
-    <div className="relative w-full max-w-md mx-auto">
+    <div className="relative mx-auto w-full max-w-[18rem] sm:max-w-md">
       {/* iPhone-like frame */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, type: "spring" }}
-        className="relative bg-card rounded-[2.5rem] shadow-glass border border-border overflow-hidden"
+        className="relative overflow-hidden rounded-[2rem] border border-border bg-card shadow-glass sm:rounded-[2.5rem]"
       >
         {/* Notch */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-foreground rounded-b-2xl z-10" />
+        <div className="absolute left-1/2 top-0 z-10 h-6 w-28 -translate-x-1/2 rounded-b-2xl bg-foreground sm:h-7 sm:w-32" />
 
         {/* Status bar */}
-        <div className="h-12 bg-card flex items-end justify-end px-6 pb-1">
+        <div className="flex h-10 items-end justify-end bg-card px-5 pb-1 sm:h-12 sm:px-6">
           <span className="text-xs font-medium">{currentTime}</span>
         </div>
 
         {/* Chat header */}
-        <div className="px-4 py-3 border-b border-border flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-sm">
+        <div className="flex items-center gap-3 border-b border-border px-3 py-2.5 sm:px-4 sm:py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground sm:h-10 sm:w-10">
             🟩
           </div>
           <div>
@@ -155,7 +155,7 @@ export const HeroAnimation = () => {
         {/* Messages container */}
         <div 
           ref={scrollContainerRef}
-          className="h-[400px] overflow-y-auto px-4 py-4 space-y-3 bg-background scroll-smooth"
+          className="h-[250px] space-y-3 overflow-y-auto bg-background px-3 py-3 scroll-smooth sm:h-[400px] sm:px-4 sm:py-4"
         >
           {messages.map((msg, index) => (
             <motion.div 
@@ -201,7 +201,7 @@ export const HeroAnimation = () => {
         </div>
 
         {/* Input bar */}
-        <div className="p-3 border-t border-border bg-card">
+        <div className="border-t border-border bg-card p-2.5 sm:p-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
               <span className="text-lg">+</span>
@@ -215,7 +215,7 @@ export const HeroAnimation = () => {
         </div>
 
         {/* Home indicator */}
-        <div className="h-8 bg-card flex items-center justify-center">
+        <div className="flex h-6 items-center justify-center bg-card sm:h-8">
           <div className="w-32 h-1 bg-foreground/20 rounded-full" />
         </div>
       </motion.div>
