@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { HeroAnimation } from "../components/HeroAnimation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +11,7 @@ import {
 import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown, User, LogOut, Map } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
 import hackathonPerson1 from "@/assets/hackathon-person-1.jpg";
 import hackathonPerson2 from "@/assets/hackathon-person-2.jpg";
 import hackathonPerson3 from "@/assets/hackathon-person-3.jpg";
@@ -49,6 +50,24 @@ const hackathonPeople = [
 const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
+  const [isPhone, setIsPhone] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches
+  );
+  const [heroComplete, setHeroComplete] = useState(() =>
+    typeof window === "undefined" ||
+    window.matchMedia("(min-width: 640px)").matches ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  const stageOpening = isPhone && !reduceMotion;
+
+  useEffect(() => {
+    const phoneQuery = window.matchMedia("(max-width: 639px)");
+    const handlePhoneChange = () => setIsPhone(phoneQuery.matches);
+    phoneQuery.addEventListener("change", handlePhoneChange);
+    if (!stageOpening) setHeroComplete(true);
+    return () => phoneQuery.removeEventListener("change", handlePhoneChange);
+  }, [stageOpening]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -158,16 +177,24 @@ const Index = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative order-1 lg:order-2"
+              layout
+              className={`relative order-1 lg:order-2 ${stageOpening && !heroComplete ? "flex min-h-[calc(100dvh-4rem)] items-center" : ""}`}
             >
-              <HeroAnimation />
+              <HeroAnimation
+                expanded={stageOpening && !heroComplete}
+                onComplete={() => setHeroComplete(true)}
+              />
             </motion.div>
 
             {/* Hero Text - Second on mobile, first on desktop */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+              initial={false}
+              animate={{
+                opacity: heroComplete ? 1 : 0,
+                y: heroComplete ? 0 : 28,
+                height: heroComplete ? "auto" : 0,
+              }}
+              transition={{ duration: 0.65, delay: heroComplete ? 0.2 : 0, ease: [0.22, 1, 0.36, 1] }}
               className="text-center lg:text-left order-2 lg:order-1"
             >
               {/* Badge - hidden on mobile */}
@@ -259,7 +286,16 @@ const Index = () => {
       </section>
 
       {/* Mobile CTA - shown only on mobile, right after hero */}
-      <section className="sm:hidden px-4 pb-8">
+      <motion.section
+        initial={false}
+        animate={{
+          opacity: heroComplete ? 1 : 0,
+          y: heroComplete ? 0 : 24,
+          height: heroComplete ? "auto" : 0,
+        }}
+        transition={{ duration: 0.6, delay: heroComplete ? 0.45 : 0, ease: [0.22, 1, 0.36, 1] }}
+        className="sm:hidden overflow-hidden px-4 pb-8"
+      >
         <div className="container mx-auto">
           <p className="text-base text-muted-foreground mb-6 text-center">
             Pick a trip off the shelf. Build complete getaways and share a single payment link with friends.
@@ -276,7 +312,7 @@ const Index = () => {
             </Button>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Features Section */}
       <section className="py-20 px-4 bg-muted/30">

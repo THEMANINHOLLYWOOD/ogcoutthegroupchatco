@@ -54,6 +54,11 @@ interface ChatMessage {
   isCard?: boolean;
 }
 
+interface HeroAnimationProps {
+  expanded?: boolean;
+  onComplete?: () => void;
+}
+
 const buildMessages = (dest: Destination): ChatMessage[] => [
   { message: "Wordle 1,681 3/6\n\n⬜🟨⬜⬜🟩\n🟩⬜🟨🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Sarah" },
   { message: "Wordle 1,681 5/6\n\n⬜⬜⬜⬜⬜\n⬜🟨⬜🟨⬜\n🟨🟩⬜🟩⬜\n🟩🟩⬜🟩🟩\n🟩🟩🟩🟩🟩", sender: false, name: "Mike" },
@@ -68,7 +73,7 @@ const messageTimings = [800, 1800, 3000, 3600, 4600, 5600, 6800];
 
 
 
-export const HeroAnimation = () => {
+export const HeroAnimation = ({ expanded = false, onComplete }: HeroAnimationProps) => {
   const currentTime = useCurrentTimeEST();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -77,6 +82,11 @@ export const HeroAnimation = () => {
   const typingName = "Sarah";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
 
   // Auto-scroll
@@ -113,10 +123,15 @@ export const HeroAnimation = () => {
       }]);
     }, 10000);
 
+    const completeTimer = setTimeout(() => {
+      onCompleteRef.current?.();
+    }, 11200);
+
     return () => {
       messageTimers.forEach(clearTimeout);
       clearTimeout(typingTimer);
       clearTimeout(cardTimer);
+      clearTimeout(completeTimer);
     };
   }, [destination]);
 
@@ -125,7 +140,13 @@ export const HeroAnimation = () => {
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-[18rem] sm:max-w-md">
+    <motion.div
+      animate={{
+        maxWidth: expanded ? "calc(100vw - 1.5rem)" : "18rem",
+      }}
+      transition={{ type: "spring", stiffness: 90, damping: 22, mass: 0.9 }}
+      className="relative mx-auto w-full sm:max-w-md"
+    >
       {/* iPhone-like frame */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -153,9 +174,11 @@ export const HeroAnimation = () => {
         </div>
 
         {/* Messages container */}
-        <div 
+        <motion.div 
           ref={scrollContainerRef}
-          className="h-[250px] space-y-3 overflow-y-auto bg-background px-3 py-3 scroll-smooth sm:h-[400px] sm:px-4 sm:py-4"
+          animate={{ height: expanded ? "calc(100dvh - 15rem)" : "250px" }}
+          transition={{ type: "spring", stiffness: 90, damping: 22, mass: 0.9 }}
+          className="min-h-[250px] max-h-[calc(100dvh-15rem)] space-y-3 overflow-y-auto bg-background px-3 py-3 scroll-smooth sm:h-[400px] sm:max-h-none sm:px-4 sm:py-4"
         >
           {messages.map((msg, index) => (
             <motion.div 
@@ -198,7 +221,7 @@ export const HeroAnimation = () => {
           )}
           
           <div ref={messagesEndRef} />
-        </div>
+        </motion.div>
 
         {/* Input bar */}
         <div className="border-t border-border bg-card p-2.5 sm:p-3">
@@ -231,6 +254,6 @@ export const HeroAnimation = () => {
         transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
         className="absolute -bottom-8 -left-8 w-24 h-24 bg-accent/10 rounded-full blur-2xl"
       />
-    </div>
+    </motion.div>
   );
 };
