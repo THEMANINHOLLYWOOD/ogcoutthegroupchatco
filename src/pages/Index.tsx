@@ -227,7 +227,7 @@ const Index = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="mt-6 sm:mt-8 lg:mt-10 flex items-center gap-4 justify-center lg:justify-start"
+                className="mt-6 flex flex-col items-center gap-2 sm:mt-8 sm:flex-row sm:gap-4 lg:mt-10 lg:justify-start"
               >
                 <div className="flex -space-x-2 shrink-0" aria-label="Hackathon team">
                   {hackathonPeople.map((person, index) => (
@@ -249,7 +249,7 @@ const Index = () => {
                     </Avatar>
                   ))}
                 </div>
-                <p className="max-w-[15rem] text-left text-sm font-semibold leading-snug text-foreground">
+                <p className="max-w-[18rem] text-center text-sm font-semibold leading-snug text-foreground sm:max-w-[15rem] sm:text-left">
                   Created in 36 hours for Gemini Hackathon
                 </p>
               </motion.div>
