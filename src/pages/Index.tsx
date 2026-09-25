@@ -150,9 +150,9 @@ const Index = () => {
       </motion.nav>
 
       {/* Hero Section */}
-      <section className="pt-16 sm:pt-24 lg:pt-32 pb-12 lg:pb-20 px-4">
+      <section className="px-4 pb-8 pt-16 sm:pb-12 sm:pt-24 lg:pb-20 lg:pt-32">
         <div className="container mx-auto">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-20 items-center">
+          <div className="grid items-center gap-5 sm:gap-8 lg:grid-cols-2 lg:gap-20">
             {/* Phone Animation - First on mobile, second on desktop */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -184,7 +184,7 @@ const Index = () => {
                 <span className="leading-tight">Don't just book flights, accommodations, and activities; book experiences.</span>
               </motion.div>
 
-              <h1 className="text-2xl sm:text-4xl lg:text-6xl font-bold tracking-tight mb-4 lg:mb-6">
+              <h1 className="mb-3 text-2xl font-bold tracking-tight sm:mb-4 sm:text-4xl lg:mb-6 lg:text-6xl">
                 Let trips make it<br />
                 <span className="text-primary">out the group chat.</span>
               </h1>
@@ -195,7 +195,7 @@ const Index = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6 }}
-                className="flex lg:hidden flex-col items-center gap-2 mb-6"
+                className="mb-3 flex flex-col items-center gap-1 lg:hidden sm:mb-6 sm:gap-2"
               >
                 <motion.div
                   animate={{ y: [0, 6, 0] }}
@@ -227,9 +227,9 @@ const Index = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="mt-6 flex flex-col items-center gap-2 sm:mt-8 sm:flex-row sm:gap-4 lg:mt-10 lg:justify-start"
+                className="mt-3 flex flex-col items-center gap-2 sm:mt-8 sm:flex-row sm:gap-4 lg:mt-10 lg:justify-start"
               >
-                <div className="flex -space-x-2 shrink-0" aria-label="Hackathon team">
+                <div className="flex shrink-0 -space-x-2" aria-label="Hackathon team">
                   {hackathonPeople.map((person, index) => (
                     <Avatar
                       key={person.src}
