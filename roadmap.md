@@ -7,3 +7,4 @@
 - [x] Change homepage proof text to “Created in 36 hours for Gemini Hackathon”
 - [x] Verify the updated proof row on desktop and mobile
 - [x] Tighten the mobile opening so the phone, headline, and complete hackathon proof fit cleanly
+- [x] Make the mobile phone fill the opening screen, then shrink and reveal the homepage content
