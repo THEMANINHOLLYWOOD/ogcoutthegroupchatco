@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.suggest-destination]
 verify_jwt = false
+
+[functions.trip-agent]
+verify_jwt = false

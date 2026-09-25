@@ -59,6 +59,127 @@ export type Database = {
           },
         ]
       }
+      agent_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: Json
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: Json
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: Json
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "agent_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_threads: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bookings: {
+        Row: {
+          amount: number
+          booking_reference: string | null
+          created_at: string
+          currency: string
+          duffel_offer_id: string | null
+          duffel_order_id: string | null
+          error: string | null
+          id: string
+          kind: string
+          passengers: Json
+          status: string
+          stripe_session_id: string | null
+          summary: Json
+          thread_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          booking_reference?: string | null
+          created_at?: string
+          currency?: string
+          duffel_offer_id?: string | null
+          duffel_order_id?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          passengers?: Json
+          status?: string
+          stripe_session_id?: string | null
+          summary?: Json
+          thread_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_reference?: string | null
+          created_at?: string
+          currency?: string
+          duffel_offer_id?: string | null
+          duffel_order_id?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          passengers?: Json
+          status?: string
+          stripe_session_id?: string | null
+          summary?: Json
+          thread_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "agent_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       friendships: {
         Row: {
           addressee_id: string
