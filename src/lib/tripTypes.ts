@@ -31,6 +31,8 @@ export interface FlightOption {
   airline: string;
   departure_time: string;
   arrival_time: string;
+  source_url?: string;
+  is_estimate?: boolean;
 }
 
 export interface AccommodationOption {
@@ -39,6 +41,8 @@ export interface AccommodationOption {
   total_nights: number;
   rating: number;
   total_price: number;
+  source_url?: string;
+  is_estimate?: boolean;
 }
 
 export interface TravelerCost {
@@ -109,6 +113,10 @@ export interface Activity {
   is_live_event?: boolean;
   estimated_cost?: number;
   tip?: string;
+  venue?: string;
+  address?: string;
+  ticket_url?: string;
+  source_url?: string;
 }
 
 // Input types for saving trips

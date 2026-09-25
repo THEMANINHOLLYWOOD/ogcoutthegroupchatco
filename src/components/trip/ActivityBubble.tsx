@@ -96,6 +96,11 @@ export function ActivityBubble({
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {activity.description}
                 </p>
+                {(activity.venue || activity.address) && (
+                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                    📍 {[activity.venue, activity.address].filter(Boolean).join(" · ")}
+                  </p>
+                )}
                 
                 {/* Footer with cost and tip */}
                 <div className="flex items-center gap-4 flex-wrap mt-2">
@@ -105,6 +110,17 @@ export function ActivityBubble({
                     </span>
                   )}
                   
+                  {(activity.ticket_url || activity.source_url) && (
+                    <a
+                      href={activity.ticket_url || activity.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      {activity.ticket_url ? "Tickets" : "Details"} →
+                    </a>
+                  )}
+
                   {activity.tip && (
                     <span className="text-xs text-muted-foreground italic">
                       💡 {activity.tip}
