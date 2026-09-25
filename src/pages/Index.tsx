@@ -11,7 +11,6 @@ import {
 import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown, User, LogOut, Map } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useEffect, useState } from "react";
 import hackathonPerson1 from "@/assets/hackathon-person-1.jpg";
 import hackathonPerson2 from "@/assets/hackathon-person-2.jpg";
@@ -51,13 +50,23 @@ const hackathonPeople = [
 const Index = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
   const reduceMotion = useReducedMotion();
-  const [heroComplete, setHeroComplete] = useState(false);
-  const stageOpening = isMobile && !reduceMotion;
+  const [isPhone, setIsPhone] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches
+  );
+  const [heroComplete, setHeroComplete] = useState(() =>
+    typeof window === "undefined" ||
+    window.matchMedia("(min-width: 640px)").matches ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  const stageOpening = isPhone && !reduceMotion;
 
   useEffect(() => {
+    const phoneQuery = window.matchMedia("(max-width: 639px)");
+    const handlePhoneChange = () => setIsPhone(phoneQuery.matches);
+    phoneQuery.addEventListener("change", handlePhoneChange);
     if (!stageOpening) setHeroComplete(true);
+    return () => phoneQuery.removeEventListener("change", handlePhoneChange);
   }, [stageOpening]);
 
   const handleSignOut = async () => {
