@@ -1,8 +1,17 @@
 // Live web search via Perplexity (direct API). Returns answer text + citation URLs.
-export async function webSearch(query: string, system = "Be precise. Give real, currently listed prices, times and names with sources."): Promise<string> {
+let queue: Promise<unknown> = Promise.resolve();
+
+// Serialize calls (rate limit) and retry 429s with backoff.
+export function webSearch(query: string, system?: string): Promise<string> {
+  const run = queue.then(() => webSearchOnce(query, system));
+  queue = run.catch(() => {});
+  return run;
+}
+
+async function webSearchOnce(query: string, system = "Be precise. Give real, currently listed prices, times and names with sources."): Promise<string> {
   const key = Deno.env.get("PERPLEXITY_API_KEY");
   if (!key) return "";
-  try {
+  for (let attempt = 0; attempt < 3; attempt++) try {
     const r = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -12,6 +21,11 @@ export async function webSearch(query: string, system = "Be precise. Give real, 
         search_recency_filter: "month",
       }),
     });
+    if (r.status === 429 && attempt < 2) {
+      await r.text();
+      await new Promise((res) => setTimeout(res, 2000 * (attempt + 1) + Math.random() * 500));
+      continue;
+    }
     if (!r.ok) {
       console.error("Perplexity failed", r.status, await r.text());
       return "";
@@ -24,4 +38,5 @@ export async function webSearch(query: string, system = "Be precise. Give real, 
     console.error("Perplexity error", e);
     return "";
   }
+  return "";
 }
