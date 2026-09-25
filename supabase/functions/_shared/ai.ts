@@ -92,3 +92,19 @@ export async function aiFetch(body: AnyObj, signal?: AbortSignal): Promise<Respo
   };
   return new Response(JSON.stringify(compat), { status: 200, headers: { "Content-Type": "application/json" } });
 }
+
+// Route legacy chat-completions text calls through aiFetch (image calls pass through).
+export function installAiShim() {
+  const g = globalThis as AnyObj;
+  if (g.__aiShim) return;
+  g.__aiShim = true;
+  const orig = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.startsWith("https://ai.gateway.lovable.dev/v1/chat/completions") && typeof init?.body === "string") {
+      const body = JSON.parse(init.body);
+      if (!body.modalities) return aiFetch(body, init.signal ?? undefined);
+    }
+    return orig(input as any, init);
+  }) as typeof fetch;
+}
