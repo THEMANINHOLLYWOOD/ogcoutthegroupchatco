@@ -11,6 +11,10 @@ import {
 import { ArrowRight, Plane, Hotel, Users, CreditCard, ChevronDown, User, LogOut, Map } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import hackathonPerson1 from "@/assets/hackathon-person-1.jpg";
+import hackathonPerson2 from "@/assets/hackathon-person-2.jpg";
+import hackathonPerson3 from "@/assets/hackathon-person-3.jpg";
+import hackathonPerson4 from "@/assets/hackathon-person-4.jpg";
 
 const features = [
   {
@@ -33,6 +37,13 @@ const features = [
     title: "One-Click Pay",
     description: "Friends pay their share with a single link",
   },
+];
+
+const hackathonPeople = [
+  { src: hackathonPerson1, fallback: "A" },
+  { src: hackathonPerson2, fallback: "J" },
+  { src: hackathonPerson3, fallback: "M" },
+  { src: hackathonPerson4, fallback: "S" },
 ];
 
 const Index = () => {
@@ -211,23 +222,35 @@ const Index = () => {
                 </Button>
               </div>
 
-              {/* Social proof - hidden on mobile for cleaner look */}
+              {/* Hackathon proof */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="mt-8 lg:mt-10 hidden sm:flex items-center gap-4 justify-center lg:justify-start"
+                className="mt-6 sm:mt-8 lg:mt-10 flex items-center gap-4 justify-center lg:justify-start"
               >
-                <div className="flex -space-x-2">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/80 to-accent/80 border-2 border-background"
-                    />
+                <div className="flex -space-x-2 shrink-0" aria-label="Hackathon team">
+                  {hackathonPeople.map((person, index) => (
+                    <Avatar
+                      key={person.src}
+                      className="w-9 h-9 border-2 border-background"
+                    >
+                      <AvatarImage
+                        src={person.src}
+                        alt={`Hackathon team member ${index + 1}`}
+                        className="object-cover"
+                        loading="lazy"
+                        width={512}
+                        height={512}
+                      />
+                      <AvatarFallback className="text-xs bg-muted text-muted-foreground">
+                        {person.fallback}
+                      </AvatarFallback>
+                    </Avatar>
                   ))}
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">2,400+</span> trips planned
+                <p className="max-w-[15rem] text-left text-sm font-semibold leading-snug text-foreground">
+                  Created in 36 hours for Gemini Hackathon
                 </p>
               </motion.div>
             </motion.div>
